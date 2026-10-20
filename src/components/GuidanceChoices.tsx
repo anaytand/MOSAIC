@@ -1,0 +1,6 @@
+import type { Difficulty } from '../types'
+import { guidanceLabels } from '../presentation'
+interface Props { value: Difficulty | null; onChange: (value: Difficulty | null) => void; allowAutomatic?: boolean }
+export function GuidanceChoices({ value, onChange, allowAutomatic = false }: Props) {
+  return <fieldset><legend>How much guidance would you like?</legend><p className="field-hint">Choose what feels useful today. You can change this in any lesson.</p><div className="guidance-choices">{(['guided', 'independent', 'challenge'] as const).map((level, index) => <label key={level} className={`choice-card${(value ?? 'guided') === level ? ' is-selected' : ''}`}><input name="guidance" type="radio" checked={(value ?? 'guided') === level} onChange={() => onChange(level)} /><span className="choice-icon" aria-hidden="true">{index === 0 ? '☷' : index === 1 ? '◫' : '↗'}</span><span><strong>{guidanceLabels[level]}</strong><small>{level === 'guided' ? 'Detailed instructions and examples.' : level === 'independent' ? 'Some instructions with independent practice.' : 'Less guidance and more open-ended challenges.'}</small></span></label>)}</div>{allowAutomatic && <button className="text-button" type="button" onClick={() => onChange(null)} disabled={value === null}>{value === null ? 'Using adaptive recommendations' : 'Use adaptive recommendations'}</button>}</fieldset>
+}

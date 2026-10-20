@@ -1,0 +1,11 @@
+import { useSyncExternalStore } from 'react'
+import { ambientEngine, ambientTrack } from '../ambient'
+import { soundEngine } from '../sound'
+import type { UserPreferences } from '../types'
+import { SensoryRange } from './SensoryControls'
+interface Props { preferences: UserPreferences; onChange: (value: UserPreferences) => void }
+export function AmbientControls({ preferences, onChange }: Props) {
+  const state = useSyncExternalStore(ambientEngine.subscribe, ambientEngine.snapshot, () => 'Paused')
+  const update = (changes: Partial<UserPreferences>) => { const next = { ...preferences, ...changes }; ambientEngine.configure(next, ambientTrack(next)); soundEngine.configure(next); onChange(next) }
+  return <details className="ambient-controls" data-sound-control="true"><summary>♫ Music · {state}</summary><div className="ambient-panel"><strong>Optional background audio</strong><p>{ambientTrack(preferences).title}</p><p role="status">{state}. Music never starts on page load.</p><div className="sound-actions"><button className="button button-secondary" type="button" disabled={preferences.soundMuted || preferences.musicVolume === 0} onClick={() => { ambientEngine.configure(preferences, ambientTrack(preferences)); ambientEngine.toggle() }}>{state === 'Playing' || state === 'Loading' || state === 'Paused during Python execution' ? 'Pause music' : 'Play music'}</button><button className="button button-secondary" type="button" onClick={() => update({ soundMuted: !preferences.soundMuted, soundEffects: preferences.soundMuted })}>{preferences.soundMuted ? 'Unmute audio' : 'Mute audio'}</button></div><SensoryRange label="Music volume" value={preferences.musicVolume} onChange={(musicVolume) => update({ musicVolume })} /><label className="reference-toggle"><span>Allow music while Python runs</span><input type="checkbox" checked={preferences.musicDuringExecution} onChange={(event) => update({ musicDuringExecution: event.target.checked })} /></label><button className="button button-secondary" type="button" onClick={() => { ambientEngine.pause(); update({ soundMuted: true, soundEffects: false }) }}>Stop all sounds</button><small>Original MOSAIC audio · CC0. Sound effects and music share the mute control.</small></div></details>
+}

@@ -1,3 +1,4 @@
+import Logo from './reference/Logo'
 interface BrandProps {
   compact?: boolean
 }
@@ -5,7 +6,7 @@ interface BrandProps {
 export function Brand({ compact = false }: BrandProps) {
   return (
     <a className={`brand${compact ? ' brand--compact' : ''}`} href="#home" aria-label="MOSAIC home">
-      <span className="brand-mark" aria-hidden="true"><i /><i /><i /><i /></span>
+      <Logo size={compact ? 26 : 34} />
       <span>MOSAIC</span>
     </a>
   )

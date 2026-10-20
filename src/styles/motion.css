@@ -1,0 +1,72 @@
+/* Milestone 2: decorative motion and mascot reactions only. No route/panel/editor transitions. */
+:root {
+  --motion-float: 0px;
+  --motion-drift: 0px;
+  --motion-wave-angle: 0deg;
+  --motion-loop: 22s;
+  --motion-marquee: 320s;
+  --motion-reaction: 2.3s;
+  --motion-ease: cubic-bezier(.22,.61,.36,1);
+  --world-motion-rate: 1;
+}
+html[data-adventure='space'] { --world-motion-rate: 1.35; }
+html[data-adventure='ocean'] { --world-motion-rate: 1.1; }
+html[data-adventure='basketball'] { --world-motion-rate: 1.2; }
+html[data-adventure='trains'] { --world-motion-rate: 1.05; }
+html[data-adventure='animals'] { --world-motion-rate: 1.25; }
+html[data-adventure='music'] { --world-motion-rate: 1; }
+
+@keyframes mosaic-type-drift { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes mosaic-float { 0%,100% { translate: 0 0; } 50% { translate: 0 calc(var(--motion-float) * -1); } }
+@keyframes mosaic-drift { 0%,100% { translate: 0 0; } 50% { translate: var(--motion-drift) calc(var(--motion-float) * -.6); } }
+@keyframes mosaic-wave { 0%,100% { translate: 0 0; } 50% { translate: calc(var(--motion-drift) * -.7) calc(var(--motion-float) * -.35); } }
+@keyframes mosaic-antenna { 0%,100% { rotate: 0deg; } 50% { rotate: calc(var(--motion-wave-angle) * .3); } }
+@keyframes mosaic-welcome { 0%,100% { rotate: 0deg; } 25%,65% { rotate: calc(var(--motion-wave-angle) * -1); } 45%,80% { rotate: calc(var(--motion-wave-angle) * .5); } }
+@keyframes mosaic-eyes { 0%,96%,99%,100% { scale: 1 1; } 97.5% { scale: 1 .2; } }
+
+/* Explicit opt-in through resolved preferences; static is also the pre-hydration fallback. */
+html[data-motion='standard'] .lp-hero .lp-wordmark__row,
+html[data-motion='standard'] .sensory-preview-scene .preview-typography {
+  animation: mosaic-type-drift calc(var(--motion-marquee-base, 50s) * var(--world-motion-rate)) linear infinite;
+}
+html[data-motion='standard'] .lp-hero .lp-wordmark__row:nth-child(2) { animation-direction: reverse; animation-duration: calc(var(--motion-marquee-base, 50s) * var(--world-motion-rate) * 1.2); }
+html[data-motion='standard'] .lp-hero .lp-wordmark__row:nth-child(3) { animation-duration: calc(var(--motion-marquee-base, 50s) * var(--world-motion-rate) * 1.4); }
+html[data-motion='standard'] .lp-hero .lp-floaters > *,
+html[data-motion='standard'] .lp-hero .scene-planet,
+html[data-motion='standard'] .lp-hero .scene-ball {
+  animation: mosaic-float calc(var(--motion-loop-base, 10s) * var(--world-motion-rate)) ease-in-out infinite;
+}
+html[data-motion='standard'] .lp-hero .lp-floaters > :nth-child(even) { animation-direction: reverse; animation-duration: calc(var(--motion-loop-base, 10s) * 1.3); }
+html[data-motion='standard'] .lp-hero .scene-star { animation: mosaic-drift calc(var(--motion-loop-base, 10s) * 2) ease-in-out infinite; }
+html[data-motion='standard'] .lp-hero .scene-nature { animation: mosaic-drift calc(var(--motion-loop-base, 10s) * 1.8) ease-in-out infinite; }
+html[data-motion='standard'] .lp-hero .lp-track__train { animation: mosaic-drift calc(var(--motion-loop-base, 10s) * 1.5) ease-in-out infinite; }
+html[data-motion='standard'][data-adventure='ocean'] .lp-hero .lp-hills { animation: mosaic-wave calc(var(--motion-loop-base, 10s) * 1.6) ease-in-out infinite; }
+html[data-motion='standard'][data-adventure='ocean'] .lp-hero .lp-hills { left: -2%; width: 104%; }
+.lp-wordmark, .lp-scene, .lp-hills, .lp-floaters { pointer-events: none; }
+.lp-hero { overflow: hidden; isolation: isolate; }
+.preview-typography { pointer-events: none; }
+
+:where(.robot-mascot) { display: block; width: 100%; height: auto; flex-shrink: 0; }
+.robot-mascot .robot-antenna { transform-origin: 230px 62px; }
+.robot-mascot .robot-wave-arm { transform-origin: 318px 252px; }
+.robot-mascot .robot-eyes { transform-box: fill-box; transform-origin: center; }
+html[data-motion='standard'] .robot-floating { animation: mosaic-float var(--motion-loop-base, 10s) ease-in-out infinite; }
+html[data-motion='standard'] .robot-floating .robot-eyes { animation: mosaic-eyes calc(var(--motion-loop-base, 10s) * 1.5) linear infinite; }
+html[data-motion='standard'] .robot-floating .robot-antenna { animation: mosaic-antenna var(--motion-loop-base, 10s) ease-in-out infinite; }
+html[data-motion='standard'] .robot-mascot:is([data-reaction='welcome'],[data-reaction='lesson'],[data-reaction='success']) .robot-wave-arm { animation: mosaic-welcome var(--motion-reaction) var(--motion-ease) 1; }
+html[data-motion='standard'] .robot-mascot[data-reaction='hint'] .robot-antenna { animation: mosaic-antenna var(--motion-reaction) var(--motion-ease) 1; }
+.lesson-intro-mark .robot-mascot { width: 50px; }
+.hint-guide .robot-mascot { width: 60px; }
+html[data-visual-density='minimal'] .lesson-intro-mark .robot-mascot,
+html[data-simplified='true'] .lesson-intro-mark .robot-mascot,
+.focus-mode .lesson-intro-mark .robot-mascot,
+html[data-visual-density='minimal'] .hint-guide .robot-mascot,
+html[data-simplified='true'] .hint-guide .robot-mascot { display: none; }
+/* All animated regions pause when outside the viewport or in a background tab. */
+[data-motion-active='false'], [data-motion-active='false'] * { animation-play-state: paused !important; }
+/* Existing global reduced-motion rules disable all animation, including one-shot reactions. */
+html[data-motion='reduced'] .robot-mascot, html[data-motion='reduced'] .robot-mascot * { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion-preference='custom']) :is(.lp-wordmark__row,.lp-scene,.lp-floaters,.robot-mascot,.preview-typography),
+  html:not([data-motion-preference='custom']) .robot-mascot * { animation: none !important; }
+}

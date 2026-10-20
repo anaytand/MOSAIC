@@ -1,0 +1,55 @@
+/* Numeric sensory controls preserve the existing reference cards and typography. */
+.sensory-controls { display: grid; gap: 20px; color: var(--text); }
+.master-immersion { display: grid; gap: 8px; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface-soft); color: var(--text); min-width: 0; }
+.master-immersion__heading, .master-immersion__ends { display: flex; justify-content: space-between; gap: 16px; }
+.master-immersion__heading { align-items: center; }
+.master-immersion__heading strong { font-size: 1.125rem; }
+.master-immersion__ends span:last-child { text-align: right; }
+.master-immersion__ends strong { display: block; font-size: .8125rem; }
+.master-immersion__ends small { display: block; color: var(--text-muted); font-size: .75rem; }
+.sensory-matcher > .master-immersion { margin: 16px 0 24px; }
+.sensory-preview-levels { display: grid; gap: 4px; margin: 12px 0 0; }
+.sensory-preview-levels div { display: flex; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding-top: 6px; }
+.sensory-preview-levels dt { color: var(--text-muted); }
+.sensory-preview-levels dd { margin: 0; text-align: right; }
+.sensory-range { min-width: 0; }
+.sensory-range > label { display: flex; justify-content: space-between; gap: 16px; font-size: .9375rem; font-weight: 500; color: var(--text); }
+.sensory-range output { color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sensory-range input[type='range'] { width: 100%; min-height: 44px; padding: 0; border: 0; margin: 0; background: transparent; accent-color: var(--teal); cursor: pointer; }
+.sensory-controls small, .sensory-range small { display: block; color: var(--text-muted); font-size: .8125rem; line-height: 1.6; }
+.audio-controls { padding: 16px; border: 1px solid var(--line); border-radius: 16px; display: grid; gap: 12px; }
+.audio-controls legend { font-size: 1rem; color: var(--text); }
+.sound-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sound-actions .button { padding: 10px 14px; font-size: .875rem; }
+.sound-notice:empty { display: none; }
+.sound-notice { color: var(--text-muted) !important; font-size: .8125rem !important; margin: 0; }
+.sensory-controls .reference-toggle { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; font-size: .9375rem; }
+.sensory-controls .reference-toggle input { flex: none; width: 22px; height: 22px; accent-color: var(--teal); }
+.lp-panel .sensory-controls { color: #0f1a1f; --text: #0f1a1f; --text-muted: #45545b; --surface: #fff; --line: #cbdad3; --teal: #2a6e96; --control-line: #79928a; }
+html[data-theme='dark'] .lp-panel .sensory-controls { --text: #eef6f3; --text-muted: #b8cbc9; --surface: #162a33; --line: #405760; --teal: #86d6c9; --control-line: #718d96; }
+.sensory-live, .embedded .sensory-live { display: block; background: var(--surface); color: var(--text); margin-top: 16px; padding: 16px; }
+.sensory-preview-scene { position: relative; overflow: hidden; isolation: isolate; border-radius: 16px; background: linear-gradient(180deg,var(--sky1),var(--sky2)); height: 160px; margin: 12px 0 16px; }
+.preview-typography { position: absolute; top: 32px; left: 0; font-size: 2.75rem; letter-spacing: -.045em; font-weight: 700; color: transparent; -webkit-text-stroke: 1px #536675; white-space: nowrap; display: flex; width: max-content; }
+.preview-robot { position: absolute; left: 50%; top: 10px; margin-left: -95px; width: 190px; height: auto; }
+.sensory-preview-card { border: 1px solid var(--line); border-radius: 16px; padding: 16px; background: var(--theme-soft); }
+.sensory-preview-card h3 { color: var(--text); font-size: 1rem; }
+.sensory-preview-card p { color: var(--text-muted) !important; font-size: .875rem; }
+.sensory-preview-card .theme-art { float: right; width: 80px; margin: 0 0 8px 12px; }
+.embedded .sensory-live .theme-art { width: 80px; margin: 0 0 8px 12px; }
+.sensory-preview-card pre { clear: both; }
+.sensory-live[data-preview-density='minimal'] .sensory-preview-scene, .sensory-live[data-preview-density='minimal'] .theme-art { display: none; }
+.sensory-live[data-preview-density='minimal'] .sensory-preview-card { padding: 24px; }
+html[data-visual-density='minimal'] .theme-milestones { display: none; }
+html[data-visual-density='minimal'] .recommendation-card { background: var(--surface-soft); }
+html[data-visual-density='minimal'] .page-heading { margin-bottom: 24px; }
+html[data-visual-density='minimal'] .lp-feature { gap: 16px; }
+html[data-visual-density='detailed'] .lesson-details { margin-top: 12px; }
+.progress-track > span { background: var(--decor-progress, var(--teal)); }
+html[data-theme='dark'] .sensory-preview-scene { --sky1: var(--decor-dark-sky1); --sky2: var(--decor-dark-sky2); }
+@media (max-width: 560px) {
+  .audio-controls { padding: 12px; }
+  .sensory-controls { gap: 16px; }
+  .sound-actions .button { flex: 1; }
+}
+
+.lp-wordmark__row--solid { color: var(--decor-wordmark, var(--wm)); }

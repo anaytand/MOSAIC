@@ -6,7 +6,7 @@ const monacoBaseUrl = `https://cdn.jsdelivr.net/npm/monaco-editor@${monacoVersio
 interface EditorInstance {
   getValue: () => string
   onDidChangeModelContent: (listener: () => void) => { dispose: () => void }
-  updateOptions: (options: { fontSize?: number }) => void
+  updateOptions: (options: { fontSize?: number; lineHeight?: number }) => void
   dispose: () => void
 }
 
@@ -48,7 +48,7 @@ function loadMonaco(): Promise<MonacoApi> {
           const monaco = window.monaco
           if (!monaco) { reject(new Error('Monaco Editor did not finish loading.')); return }
           monaco.editor.defineTheme('mosaic-light', {
-            base: 'vs', inherit: true, rules: [], colors: { 'editor.background': '#fbfdfb', 'editorLineNumber.foreground': '#8b9e9a', 'editorCursor.foreground': '#176f69', 'editor.selectionBackground': '#cde9df' },
+            base: 'vs', inherit: true, rules: [], colors: { 'editor.background': '#fbfdfb', 'editorLineNumber.foreground': '#536c68', 'editorLineNumber.activeForeground': '#142f39', 'editorCursor.foreground': '#176f69', 'editor.selectionBackground': '#cde9df' },
           })
           monaco.editor.defineTheme('mosaic-dark', {
             base: 'vs-dark', inherit: true, rules: [], colors: { 'editor.background': '#122127', 'editorLineNumber.foreground': '#8aa09c', 'editorCursor.foreground': '#8bd8c9', 'editor.selectionBackground': '#27534c' },
@@ -117,10 +117,11 @@ export function MonacoEditor({ initialValue, theme, highContrast, fontSize, onCh
         language: 'python',
         theme: optionsRef.current.theme === 'dark' ? optionsRef.current.highContrast ? 'mosaic-dark-high' : 'mosaic-dark' : optionsRef.current.highContrast ? 'mosaic-light-high' : 'mosaic-light',
         fontSize: optionsRef.current.fontSize,
-        fontFamily: "'SFMono-Regular', Consolas, 'Liberation Mono', monospace",
+        lineHeight: Math.round(optionsRef.current.fontSize * 1.7),
+        fontFamily: "'JetBrains Mono', Consolas, 'Liberation Mono', monospace",
         automaticLayout: true,
         accessibilitySupport: 'on',
-        ariaLabel: 'Python code editor. Use arrow keys to move through lines and type to edit your code.',
+        ariaLabel: 'Python code editor. Tab indents code. To let Tab move focus out, press Control M on Windows or Linux, or Control Shift M on Mac, then press Tab. Control or Command Enter runs your code.',
         lineNumbers: 'on',
         minimap: { enabled: false },
         folding: false,
@@ -152,7 +153,7 @@ export function MonacoEditor({ initialValue, theme, highContrast, fontSize, onCh
   }, [retryKey])
 
   useEffect(() => {
-    editorRef.current?.updateOptions({ fontSize })
+    editorRef.current?.updateOptions({ fontSize, lineHeight: Math.round(fontSize * 1.7) })
     if (window.monaco) window.monaco.editor.setTheme(theme === 'dark' ? highContrast ? 'mosaic-dark-high' : 'mosaic-dark' : highContrast ? 'mosaic-light-high' : 'mosaic-light')
   }, [fontSize, highContrast, theme])
 

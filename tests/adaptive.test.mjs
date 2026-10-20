@@ -97,10 +97,10 @@ test('time is tracked but does not change mastery or difficulty', () => {
   assert.equal(suggestedDifficulty(later, 'functions'), suggestedDifficulty(progress, 'functions'))
 })
 
-test('Python validation accepts working solutions and rejects untouched starters for every variant', async () => {
+test('legacy Python validation accepts working solutions and rejects untouched starters for every introductory variant', async () => {
   const { spawnSync } = await import('node:child_process')
   const cases = []
-  for (const concept of conceptOrder) for (const level of ['guided', 'independent', 'challenge']) for (const interest of ['ocean', 'space', 'trains', 'animals', 'music', 'sports', 'custom']) {
+  for (const concept of conceptOrder.slice(0, 5)) for (const level of ['guided', 'independent', 'challenge']) for (const interest of ['ocean', 'space', 'trains', 'animals', 'music', 'sports', 'custom']) {
     const lesson = getLesson(concept, level, interest, 'paper cranes')
     let solution = ''
     if (concept === 'hello-python') solution = lesson.expectedBehavior.split('\n').map((line) => `print(${JSON.stringify(line)})`).join('\n')

@@ -39,8 +39,19 @@ Hints are revealed only on request and saved as events. The worker validates pro
 
 ## Testing
 
-Run `npm test`, `npm run lint`, and `npm run build`. The tests cover failures, independent and hinted successes, level progression, manual override, interest switching, refresh, review, migration, invalid data, failed execution, and time neutrality. They also run all 105 challenge checkers against untouched starters and working solutions using local Python. To explore manually, choose an interest, open Learn, run a solution, request hints or select a level, and inspect My Progress. Refresh and return to Learn to confirm the draft and learning record persist.
+Run `npm test`, `npm run lint`, and `npm run build`. The tests cover failures, independent and hinted successes, level progression, manual override, interest switching, refresh, review, migration, invalid data, failed execution, and time neutrality. They also run all 105 challenge checkers against untouched starters and working solutions using local Python. To explore manually, choose an interest, open Learn, run a solution, request hints or select a level, and inspect Progress. Refresh and return to Learn to confirm the draft and learning record persist.
 
 ## Current limits
 
 Data is local to one browser profile and does not sync across devices. The Python editor and runtime load CDN assets, so an internet connection is required the first time. The mastery estimate is a transparent classroom heuristic, not a validated psychometric measure. Browser execution still uses the Phase 2 Web Worker and its eight-second timeout; it needs a full browser check in an environment that permits local server listening and CDN access.
+
+
+## Phase 4 theme integration
+
+The immersive provider in `themes/lessons.ts` adds 90 themed lesson variants without changing concept IDs, scoring, prerequisites, or manual guidance overrides. The original provider remains for legacy custom examples. New theme-specific draft keys protect old code. The learning record adds a validated project-snapshot map; snapshots and sensory preferences never enter mastery calculations. See [PHASE4.md](./PHASE4.md) for the worker data contract and migration details.
+
+## Phase 6 curriculum extension
+
+The current progression contains twelve concepts. The original first-five identifiers, templates, exercise IDs, mastery formula, and historical data remain unchanged. Seven additional concepts follow Functions: Lists, Strings, Dictionaries, User Input, Numbers, Combining Concepts, and Final Project. `extendedContent.ts` and `extendedLessons.ts` provide 126 new themed level variants alongside 90 original ones. The legacy introductory provider remains covered separately.
+
+The existing version-1 learning loader initializes missing concept times and input-draft maps without removing historical completions or attempts. A saved record with the original five complete recommends Lists. New behavioral checkers call learner functions with varied datasets; input() reads a bounded editable queue in the worker. See [PHASE6.md](./PHASE6.md) for contracts, migration details, and verification limits.

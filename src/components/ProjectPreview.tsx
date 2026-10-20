@@ -1,0 +1,6 @@
+import type { LearningTheme, ProjectSnapshot } from '../themes/types'
+import { parseProjectSnapshot } from '../themes/projects'
+export function ProjectPreview({ theme, snapshot }: { theme: LearningTheme; snapshot?: ProjectSnapshot }) {
+  const data = parseProjectSnapshot(snapshot, theme.id)
+  return <section className="project-preview" aria-label={`${theme.name} validated project`}><span className="eyebrow">YOUR PYTHON PROJECT</span><h3>{theme.projectName}</h3>{!data ? <p className="muted">Complete “{theme.chapters.variables.title}” to see your validated Python variables here.</p> : <><span className="status-tag">✓ Last validated Python run</span>{theme.id === 'basketball' ? <div className="basketball-scoreboard"><div><span>{data.values.team_name}</span><strong>{data.values.team_score}</strong><small>HOME</small></div><span aria-hidden="true">:</span><div><span>{data.values.opponent_name}</span><strong>{data.values.opponent_score}</strong><small>AWAY</small></div><p>{data.values.player_name} · {data.values.player_points} points</p></div> : <dl className="project-data">{theme.fields.map((field) => <div key={field.key}><dt>{field.label}</dt><dd>{data.values[field.key]}</dd></div>)}</dl>}<p className="project-source">These values came from a successful lesson check, not from parsing console text.</p></>}</section>
+}

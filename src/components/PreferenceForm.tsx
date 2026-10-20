@@ -1,64 +1,25 @@
-import type { ChangeEvent } from 'react'
-import type { ColorTheme, FontSize, Interest, UserPreferences } from '../types'
+import { updateSensoryPreferences } from '../sensory'
+import type { FontSize, Interest, UserPreferences } from '../types'
 
-interface PreferenceFormProps {
-  preferences: UserPreferences
-  onChange: (next: UserPreferences) => void
-}
-
+interface PreferenceFormProps { preferences: UserPreferences; onChange: (next: UserPreferences) => void }
 const interests: { value: Interest; label: string; icon: string; detail: string }[] = [
-  { value: 'ocean', label: 'Ocean', icon: '🌊', detail: 'Waves, reefs & sea life' },
-  { value: 'space', label: 'Space', icon: '🪐', detail: 'Planets, stars & missions' },
-  { value: 'trains', label: 'Trains', icon: '🚂', detail: 'Tracks, routes & engines' },
-  { value: 'animals', label: 'Animals', icon: '🦊', detail: 'Creatures & habitats' },
+  { value: 'space', label: 'Space', icon: '✧', detail: 'Planets & missions' },
+  { value: 'ocean', label: 'Ocean', icon: '≈', detail: 'Reefs & sea life' },
+  { value: 'basketball', label: 'Basketball', icon: '◎', detail: 'Build a team’s season hub' },
+  { value: 'animals', label: 'Animals', icon: '♧', detail: 'Creatures & habitats' },
   { value: 'music', label: 'Music', icon: '♫', detail: 'Songs & instruments' },
-  { value: 'sports', label: 'Sports', icon: '⚽', detail: 'Teams & games' },
-  { value: 'custom', label: 'My own topic', icon: '✦', detail: 'Choose something you love' },
+  { value: 'trains', label: 'Trains', icon: '▥', detail: 'Tracks & routes' },
+  { value: 'custom', label: 'Something else', icon: '+', detail: 'A topic of your own' },
 ]
 
-export function PreferenceForm({ preferences, onChange }: PreferenceFormProps) {
-  const update = (changes: Partial<UserPreferences>) => onChange({ ...preferences, ...changes })
-  const changeInterest = (event: ChangeEvent<HTMLInputElement>) => update({ interest: event.target.value as Interest })
+export function InterestChoices({ preferences, onChange }: PreferenceFormProps) {
+  return <fieldset><legend>What do you enjoy learning about?</legend><p className="field-hint">Your interests shape the examples. The Python skills stay the same.</p><div className="interest-grid">{interests.map((item) => <label key={item.value} className={`choice-card interest-card${(preferences.interest === item.value || item.value === 'basketball' && preferences.interest === 'sports') ? ' is-selected' : ''}`}><input type="radio" name="interest" value={item.value} checked={preferences.interest === item.value || item.value === 'basketball' && preferences.interest === 'sports'} onChange={() => onChange({ ...preferences, interest: item.value })} /><span className="choice-icon" aria-hidden="true">{item.icon}</span><span><strong>{item.label}</strong><small>{item.detail}</small></span></label>)}</div>{preferences.interest === 'custom' && <label className="field-label custom-topic">Your interest<input autoComplete="off" value={preferences.customTopic} onChange={(event) => onChange({ ...preferences, customTopic: event.target.value })} placeholder="For example, baking or robotics" maxLength={48} /><small>Six listed themes have connected project journeys. Other custom topics keep personalized starter examples.</small></label>}</fieldset>
+}
 
-  return (
-    <div className="preference-form">
-      <fieldset className="interest-fieldset">
-        <legend>What are you curious about?</legend>
-        <p className="field-hint">Choose a theme for examples. You can change it anytime.</p>
-        <div className="interest-grid">
-          {interests.map((item) => (
-            <label key={item.value} className={`interest-card${preferences.interest === item.value ? ' is-selected' : ''}`}>
-              <input type="radio" name="interest" value={item.value} checked={preferences.interest === item.value} onChange={changeInterest} />
-              <span className="interest-icon" aria-hidden="true">{item.icon}</span>
-              <span className="interest-copy"><strong>{item.label}</strong><small>{item.detail}</small></span>
-              <span className="radio-mark" aria-hidden="true" />
-            </label>
-          ))}
-        </div>
-        {preferences.interest === 'custom' && (
-          <label className="field-label custom-topic">Your topic
-            <input value={preferences.customTopic} onChange={(event) => update({ customTopic: event.target.value })} placeholder="e.g. baking, birds, basketball" maxLength={48} />
-          </label>
-        )}
-      </fieldset>
-
-      <fieldset className="visual-fieldset">
-        <legend>Make it comfortable for you</legend>
-        <p className="field-hint">These choices only change how this page looks.</p>
-        <label className="toggle-row"><span><strong>Reduced motion</strong><small>Keep movement and transitions to a minimum</small></span><input type="checkbox" checked={preferences.reducedMotion} onChange={(event) => update({ reducedMotion: event.target.checked })} /><span className="toggle" aria-hidden="true" /></label>
-        <label className="toggle-row"><span><strong>Higher contrast</strong><small>Make text and controls stand out more</small></span><input type="checkbox" checked={preferences.highContrast} onChange={(event) => update({ highContrast: event.target.checked })} /><span className="toggle" aria-hidden="true" /></label>
-        <label className="toggle-row"><span><strong>Simpler workspace</strong><small>Hide optional details while you work</small></span><input type="checkbox" checked={preferences.simplifiedInterface} onChange={(event) => update({ simplifiedInterface: event.target.checked })} /><span className="toggle" aria-hidden="true" /></label>
-        <label className="field-label font-choice">Text size
-          <select value={preferences.fontSize} onChange={(event) => update({ fontSize: event.target.value as FontSize, editorFontSize: null })}>
-            <option value="standard">Standard</option><option value="large">Large</option><option value="extra-large">Extra large</option>
-          </select>
-        </label>
-        <label className="field-label font-choice">Color theme
-          <select value={preferences.colorTheme} onChange={(event) => update({ colorTheme: event.target.value as ColorTheme })}>
-            <option value="light">Light</option><option value="dark">Dark</option>
-          </select>
-        </label>
-      </fieldset>
-    </div>
-  )
+export function VisualPreferences({ preferences, onChange }: PreferenceFormProps) {
+  const update = (changes: Partial<UserPreferences>) => onChange(updateSensoryPreferences(preferences, changes))
+  return <div className="visual-preferences"><fieldset><legend>What makes your screen easier to use?</legend><p className="field-hint">Preview every change here. Your choices save automatically.</p><div className="preferences-columns"><div><fieldset className="nested-fieldset"><legend>Color theme</legend><div className="segmented-choices">{(['light', 'dark'] as const).map((theme) => <label key={theme}><input type="radio" name="color-theme" checked={preferences.colorTheme === theme} onChange={() => update({ colorTheme: theme })} /><span>{theme === 'light' ? '☼ Light' : '☾ Dark'}</span></label>)}</div></fieldset><label className="toggle-row"><span><strong>High contrast</strong><small>Make text and borders more distinct</small></span><input type="checkbox" checked={preferences.highContrast} onChange={(event) => update({ highContrast: event.target.checked })} /></label><label className="field-label">Text size<select value={preferences.fontSize} onChange={(event) => update({ fontSize: event.target.value as FontSize, editorFontSize: null })}><option value="standard">Small · 16px</option><option value="large">Medium · 18px</option><option value="extra-large">Large · 20px</option></select></label><label className="field-label">Layout spacing<select value={preferences.layoutDensity} onChange={(event) => update({ layoutDensity: event.target.value as UserPreferences['layoutDensity'] })}><option value="spacious">Spacious</option><option value="compact">Compact</option></select></label></div><div className="comfort-preview" aria-label="Live workspace preview"><span className="eyebrow">LIVE PREVIEW</span><h3>A comfortable place to code.</h3><p>One idea at a time. Your screen, your choices.</p><pre><code><span className="code-keyword">print</span>("Hello, Python!")</code></pre><span className="status-tag">✓ Clear feedback</span></div></div><label className="toggle-row"><span><strong>Reduced motion</strong><small>Keep movement and transitions to a minimum</small></span><input type="checkbox" checked={preferences.reducedMotion} onChange={(event) => update({ reducedMotion: event.target.checked })} /></label><label className="toggle-row"><span><strong>Learning companion</strong><small>Optional authored guidance for the active lesson</small></span><input type="checkbox" checked={preferences.companionEnabled} onChange={(event) => update({ companionEnabled: event.target.checked })} /></label><label className="toggle-row"><span><strong>Simplified View</strong><small>Show one workspace panel at a time with larger controls</small></span><input type="checkbox" checked={preferences.simplifiedInterface} onChange={(event) => update({ simplifiedInterface: event.target.checked })} /></label></fieldset></div>
+}
+export function PreferenceForm(props: PreferenceFormProps) {
+  return <div className="preference-form"><InterestChoices {...props} /><VisualPreferences {...props} /></div>
 }

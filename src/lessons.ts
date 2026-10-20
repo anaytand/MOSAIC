@@ -1,7 +1,13 @@
-import type { ConceptId, Difficulty, Interest, PythonLesson } from './types.ts'
+import { conceptOrder } from './adaptive.ts'
+import { extendedIds } from './themes/extendedContent.ts'
+import type { ExtendedConceptId } from './types.ts'
+import type { ConceptId, IntroConceptId, Difficulty, Interest, PythonLesson, UserPreferences } from './types.ts'
+
+import { getLearningTheme, themeCatalog } from './themes/catalog.ts'
+import { createThemeLesson } from './themes/lessons.ts'
 
 interface Context { subject: string; plural: string; place: string }
-const contexts: Record<Exclude<Interest, 'custom'>, Context> = {
+const contexts: Record<Exclude<Interest, 'custom' | 'basketball'>, Context> = {
   ocean: { subject: 'dolphin', plural: 'coral reefs', place: 'ocean' },
   space: { subject: 'planet', plural: 'moons', place: 'space' },
   trains: { subject: 'train', plural: 'stations', place: 'railway' },
@@ -9,12 +15,12 @@ const contexts: Record<Exclude<Interest, 'custom'>, Context> = {
   music: { subject: 'song', plural: 'instruments', place: 'studio' },
   sports: { subject: 'team', plural: 'matches', place: 'stadium' },
 }
-const names: Record<ConceptId, string> = { 'hello-python': 'Hello, Python!', variables: 'Variables', conditions: 'Conditions', loops: 'Loops', functions: 'Functions' }
-const objectives: Record<ConceptId, string> = {
+const names: Record<IntroConceptId, string> = { 'hello-python': 'Hello, Python!', variables: 'Variables', conditions: 'Conditions', loops: 'Loops', functions: 'Functions' }
+const objectives: Record<IntroConceptId, string> = {
   'hello-python': 'Use print() to display a message in the console.', variables: 'Store values in variables and use them in output.',
   conditions: 'Use if and else to choose an action.', loops: 'Use a for loop to repeat instructions.', functions: 'Define and call a function with a parameter.',
 }
-const concepts: Record<ConceptId, string> = {
+const concepts: Record<IntroConceptId, string> = {
   'hello-python': 'print() sends text to the console. Text goes inside quotation marks.',
   variables: 'A variable gives a value a name. Use = to store it and the name to read it.',
   conditions: 'An if statement checks a condition; else handles the other path. Indent each path.',
@@ -26,7 +32,7 @@ const exactOutputCheck = (expected: string, required: string, feedback: string) 
 const requiredLineCheck = (expected: string) => `def check(ns, output):\n    lines = [line.rstrip() for line in output.splitlines()]\n    if ${quote(expected)} in lines:\n        return True, ${quote(`The required line “${expected}” was printed.`)}\n    return False, ${quote(`Print the required message as its own output line: “${expected}”. Check the capitalization, spelling, and punctuation.`)}`
 const loopCheck = (expected: string) => `import ast\ndef check(ns, output):\n    tree = ast.parse(learner_source)\n    loop_prints = any(isinstance(node, ast.For) and any(isinstance(child, ast.Call) and isinstance(child.func, ast.Name) and child.func.id == "print" for statement in node.body for child in ast.walk(statement)) for node in ast.walk(tree))\n    normalized = "\\n".join(line.rstrip() for line in output.splitlines()).rstrip()\n    return (loop_prints and normalized == ${quote(expected)}, "Put a print() call inside a for loop to produce each requested line.")`
 
-function makeLesson(id: ConceptId, difficulty: Difficulty, interest: Interest, customTopic = ''): PythonLesson {
+function makeLesson(id: IntroConceptId, difficulty: Difficulty, interest: Exclude<Interest, 'basketball'>, customTopic = ''): PythonLesson {
   const context = interest === 'custom' ? { subject: customTopic.trim().slice(0, 48) || 'project', plural: 'ideas', place: 'your topic' } : contexts[interest]
   const { subject, plural, place } = context
   const base = { id, exerciseId: `${id}:${difficulty}:${interest}${interest === 'custom' ? ':' + encodeURIComponent(context.subject) : ''}`, difficulty, interest, validationMode: id === 'variables' || id === 'loops' ? 'exact-output' as const : 'behavior' as const, title: names[id], objective: objectives[id], concept: concepts[id] }
@@ -63,7 +69,12 @@ function makeLesson(id: ConceptId, difficulty: Difficulty, interest: Interest, c
   const checkSource = `import ast\ndef check(ns, output):\n    tree = ast.parse(learner_source)\n    defined = any(isinstance(n, ast.FunctionDef) and n.name == "greet" and len(n.args.args) >= 1 for n in ast.walk(tree))\n    fn = ns.get("greet")\n    try:\n        works = callable(fn) and fn("MOSAIC") == "Hello, MOSAIC!" and fn("teal") == "Hello, teal!"\n    except Exception:\n        works = False\n    return (defined and works and output.strip() == ${quote(expected)}, "Define greet(name), return a greeting using name, then print the requested call or calls.")`
   return { ...base, instructions: difficulty === 'guided' ? ['Complete greet(name) so it returns a greeting using name.', `Print greet(${quote(subject)}).`] : difficulty === 'independent' ? ['Write greet(name) yourself.', `Call it with ${quote(subject)} and print the result.`] : [`Write a reusable greet(name) function.`, `Call it for ${subject} and ${place}; print each result.`], sample: 'def greet(name):\n    return f"Hello, {name}!"', challenge: `Produce exactly: ${expected.replaceAll('\n', ' then ')}`, starterCode: difficulty === 'guided' ? `def greet(name):\n    # Return a greeting using name\n    pass\n\nprint(greet(${quote(subject)}))` : '# Define greet(name) and call it below\n', hints: ['A function receives a value through its parameter.', 'Return an f-string that includes {name}, then print a call to greet().', 'For example, def cheer(team): return f"Go, {team}!" creates a reusable greeting.'], expectedBehavior: expected, checkSource }
 }
-export function getLesson(id: ConceptId, difficulty: Difficulty, interest: Interest = 'ocean', customTopic = ''): PythonLesson { return makeLesson(id, difficulty, interest, customTopic) }
-export const lessons: PythonLesson[] = (['hello-python', 'variables', 'conditions', 'loops', 'functions'] as ConceptId[]).map((id) => getLesson(id, 'guided', 'ocean'))
+export function getLesson(id: ConceptId, difficulty: Difficulty, interest: Interest = 'ocean', customTopic = ''): PythonLesson { return extendedIds.includes(id as ExtendedConceptId) ? createThemeLesson(themeCatalog[interest === 'sports' || interest === 'basketball' ? 'basketball' : interest === 'custom' ? 'ocean' : interest], id, difficulty) : interest === 'basketball' && themeCatalog.basketball ? createThemeLesson(themeCatalog.basketball, id, difficulty) : makeLesson(id as IntroConceptId, difficulty, interest === 'basketball' ? 'sports' : interest, customTopic) }
+export const lessons: PythonLesson[] = conceptOrder.map((id) => getLesson(id, 'guided', 'ocean'))
 export const initialLessonId = lessons[0].id
 export const initialDrafts = Object.fromEntries(lessons.map((lesson) => [lesson.id, lesson.starterCode]))
+
+export function getLearningLesson(id: ConceptId, difficulty: Difficulty, preferences: Pick<UserPreferences, 'interest' | 'customTopic'>): PythonLesson {
+  const theme = getLearningTheme(preferences)
+  return theme ? createThemeLesson(theme, id, difficulty) : getLesson(id, difficulty, preferences.interest ?? 'ocean', preferences.customTopic)
+}

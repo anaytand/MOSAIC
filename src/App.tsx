@@ -1,126 +1,163 @@
+import { KeyboardProgram } from './components/KeyboardProgram'
+import { AuthPage } from './components/AuthPage'
+import { ProfileMenu } from './components/ProfileMenu'
+import { initialAuthCallback, supabase } from './lib/supabase'
+import { useLearningPersistence } from './lib/useLearningPersistence'
+import type { Session } from '@supabase/supabase-js'
+import { AmbientControls } from './components/AmbientControls'
+import { ambientEngine, ambientTrack } from './ambient'
+import { applyMotionRates } from './motionPlayback'
 import { useEffect, useState } from 'react'
+import { sensoryVisualVariables } from './sensoryVisuals'
+import { effectiveMotion, motionVariables } from './motion'
+import { soundEngine } from './sound'
+import { WorldPicker } from './components/reference/WorldPicker'
+import { NavigationIcon } from './components/reference/NavigationIcon'
 import { Brand } from './components/Brand'
-import { PreferenceForm } from './components/PreferenceForm'
+import { HomePage, LearningPath, ProgressPage } from './components/LearningPages'
+import { sensoryAttributes } from './sensory'
+import { SensoryMatcher } from './components/SensoryMatcher'
+import { Onboarding } from './components/Onboarding'
+import { SettingsPage } from './components/SettingsPage'
 import { Workspace } from './components/Workspace'
-import { lessons } from './lessons'
-import { conceptNames, conceptOrder, recentImprovement, statsFor } from './adaptive'
-import { loadLessonProgress, loadPreferences, saveLessonProgress, savePreferences } from './preferences'
-import type { AppPage, ConceptId, LessonProgress, UserPreferences } from './types'
+import { getLearningTheme } from './themes/catalog'
+import { setDifficultyOverride } from './adaptive'
+import { defaultPreferences } from './preferences'
+import { initialRoute, parseRoute, routeHash } from './navigation'
+import type { AppRoute, AuthPage as AuthMode } from './navigation'
+import type { AppPage, ConceptId, Difficulty } from './types'
 import './App.css'
+import './styles/journey.css'
+import './styles/reference-landing.css'
+import './styles/reference.css'
+import './styles/sensory.css'
+import './styles/motion.css'
+import './styles/phase6.css'
+import './styles/auth.css'
 
-const pages: AppPage[] = ['Home', 'Learn', 'My Progress', 'Settings']
-const pageIcons: Record<AppPage, string> = { Home: '⌂', Learn: '▤', 'My Progress': '◷', Settings: '⚙' }
-
+const pages: AppPage[] = ['Home', 'Learn', 'Progress', 'Settings']
 function App() {
-  const [preferences, setPreferences] = useState<UserPreferences>(loadPreferences)
-  const [lessonProgress, setLessonProgress] = useState<LessonProgress>(loadLessonProgress)
-  const [page, setPage] = useState<AppPage>('Home')
-  const [onboarding, setOnboarding] = useState(false)
-  const [focusMode, setFocusMode] = useState(false)
-
+  const [authSession, setAuthSession] = useState<Session | null>(null)
+  const [authReady, setAuthReady] = useState(!supabase)
+  const { preferences: storedPreferences, setPreferences, lessonProgress, setLessonProgress, dataReady, activeUserId, status: syncStatus,
+    message: syncMessage, canImport, conflict, retry, useCloud, useDevice, importGuest } = useLearningPersistence(supabase, authSession, authReady)
+  const preferences = dataReady ? storedPreferences : defaultPreferences
+  const [callbackStatus, setCallbackStatus] = useState<'idle' | 'pending' | 'success' | 'error'>(() => {
+    return initialAuthCallback ? initialAuthCallback.hadCode ? 'pending' : 'error' : 'idle'
+  })
+  const [pendingEmail, setPendingEmail] = useState('')
+  const [sensoryReturn, setSensoryReturn] = useState<AppRoute>({ page: 'Settings', workspace: false, setup: false })
+  const [route, setRoute] = useState<AppRoute>(() => initialRoute(window.location.hash, window.location.search ?? ''))
   useEffect(() => {
-    document.documentElement.dataset.contrast = preferences.highContrast ? 'high' : 'standard'
-    document.documentElement.dataset.fontSize = preferences.fontSize
-    document.documentElement.dataset.motion = preferences.reducedMotion ? 'reduced' : 'standard'
-    document.documentElement.dataset.theme = preferences.colorTheme
-    document.documentElement.dataset.simplified = preferences.simplifiedInterface ? 'true' : 'false'
-    savePreferences(preferences)
-  }, [preferences])
-
-  useEffect(() => { saveLessonProgress(lessonProgress) }, [lessonProgress])
-
-  const openPage = (next: AppPage) => { setOnboarding(false); setFocusMode(false); setPage(next) }
-  const openLesson = (lessonId?: ConceptId) => {
-    const next = lessonId ? { ...lessonProgress, currentLessonId: lessonId } : lessonProgress
-    if (lessonId) {
-      setLessonProgress(next)
-      saveLessonProgress(next)
+    const client = supabase
+    if (!client) return
+    let active = true
+    const callback = initialAuthCallback?.kind
+    const hadCode = initialAuthCallback?.hadCode
+    const settleCallback = (kind: 'confirm' | 'reset') => {
+      const next = parseRoute(kind === 'confirm' ? '#auth/confirmed' : '#auth/reset')
+      const url = new URL(window.location.href)
+      url.searchParams.delete('mosaic_auth')
+      url.searchParams.delete('code')
+      url.hash = routeHash(next)
+      window.history.replaceState(null, '', url)
+      setRoute(next)
     }
-    openPage('Learn')
+    const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+      if (!active) return
+      setAuthSession(session)
+      setAuthReady(true)
+      if (event === 'PASSWORD_RECOVERY') {
+        setCallbackStatus('success')
+        settleCallback('reset')
+      } else if (event === 'SIGNED_IN' && callback === 'confirm' && hadCode && new URLSearchParams(window.location.search).get('mosaic_auth') === 'confirm') {
+        setCallbackStatus('success')
+        settleCallback('confirm')
+      }
+    })
+    if ((callback === 'confirm' || callback === 'reset') && hadCode) {
+      void client.auth.initialize().then(async ({ error }) => {
+        if (!active) return
+        if (error) { setCallbackStatus('error'); setAuthReady(true); settleCallback(callback); return }
+        const result = await client.auth.getSession()
+        if (!active) return
+        if (result.error || !result.data.session) { setCallbackStatus('error'); settleCallback(callback) }
+        else { setAuthSession(result.data.session); setAuthReady(true); setCallbackStatus('success'); settleCallback(callback) }
+      }).catch(() => { if (active) { setCallbackStatus('error'); setAuthReady(true); settleCallback(callback) } })
+    }
+    return () => { active = false; subscription.unsubscribe() }
+  }, [])
+  useEffect(() => {
+    const root = document.documentElement
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const applySensory = () => {
+      for (const [key, value] of Object.entries(sensoryAttributes(preferences, motionQuery.matches))) root.dataset[key] = value
+      for (const [key, value] of Object.entries(motionVariables(preferences, motionQuery.matches))) root.style.setProperty(key, value)
+      applyMotionRates(root, effectiveMotion(preferences, motionQuery.matches))
+    }
+    applySensory()
+    const motionFrame = requestAnimationFrame(() => applyMotionRates(root, effectiveMotion(preferences, motionQuery.matches)))
+    motionQuery.addEventListener('change', applySensory)
+    for (const [key, value] of Object.entries(sensoryVisualVariables(preferences))) root.style.setProperty(key, value)
+    root.dataset.adventure = getLearningTheme(preferences)?.id ?? 'custom'
+    soundEngine.configure(preferences)
+    ambientEngine.configure(preferences, ambientTrack(preferences))
+    return () => { cancelAnimationFrame(motionFrame); motionQuery.removeEventListener('change', applySensory) }
+  }, [preferences])
+  useEffect(() => () => { soundEngine.dispose(); ambientEngine.dispose() }, [])
+  useEffect(() => {
+    const onHashChange = () => { setRoute(initialRoute(window.location.hash, window.location.search ?? '')); requestAnimationFrame(() => document.getElementById('main-content')?.focus()) }
+    window.addEventListener('hashchange', onHashChange)
+    window.addEventListener('popstate', onHashChange)
+    return () => { window.removeEventListener('hashchange', onHashChange); window.removeEventListener('popstate', onHashChange) }
+  }, [])
+  const navigate = (next: AppRoute) => {
+    setRoute(next)
+    const url = new URL(window.location.href)
+    const callback = url.searchParams.has('mosaic_auth') || url.searchParams.has('code')
+    if (callback) { url.searchParams.delete('mosaic_auth'); url.searchParams.delete('code'); url.hash = routeHash(next); window.history.pushState(null, '', url) }
+    else if (window.location.hash !== routeHash(next)) window.history.pushState(null, '', routeHash(next))
+    requestAnimationFrame(() => document.getElementById('main-content')?.focus())
   }
-  const finishOnboarding = () => { setPreferences({ ...preferences, onboardingComplete: true }); setOnboarding(false); setPage('Home') }
-  return (
-    <div className={`app-shell${focusMode ? ' app-focus-mode' : ''}`}>
-      <a className="skip-link" href="#main-content">Skip to content</a>
-      <header className="topbar">
-        <Brand />
-        <nav aria-label="Main navigation" className="main-nav">
-          {pages.map((item) => <button key={item} type="button" className={`nav-link${page === item && !onboarding ? ' active' : ''}`} onClick={() => openPage(item)} aria-current={page === item && !onboarding ? 'page' : undefined}><span aria-hidden="true">{pageIcons[item]}</span>{item}</button>)}
-        </nav>
-        <button className="avatar-button" type="button" onClick={() => openPage('Settings')} aria-label="Open settings">A</button>
-      </header>
-      <main id="main-content" className="main-content" tabIndex={-1}>
-        {onboarding ? <Onboarding preferences={preferences} onChange={setPreferences} onBack={() => setOnboarding(false)} onFinish={finishOnboarding} /> : <>
-          {page === 'Home' && <HomePage preferences={preferences} progress={lessonProgress} onSetup={() => setOnboarding(true)} onLearn={() => openLesson()} onSelectLesson={openLesson} onSettings={() => openPage('Settings')} />}
-          {page === 'Learn' && <Workspace preferences={preferences} progress={lessonProgress} onProgressChange={setLessonProgress} onPreferencesChange={setPreferences} onFocusModeChange={setFocusMode} />}
-          {page === 'My Progress' && <ProgressPage progress={lessonProgress} onLearn={() => openPage('Learn')} />}
-          {page === 'Settings' && <SettingsPage preferences={preferences} onChange={setPreferences} onSetup={() => setOnboarding(true)} />}
-        </>}
-      </main>
-      <footer className="site-footer"><Brand compact /><span>Learn at your own pace. Make it yours.</span><span className="footer-note">A gentle place to begin coding</span></footer>
-    </div>
-  )
+  const openPage = (page: AppPage) => navigate({ page, workspace: false, setup: false })
+  const openAuth = (auth: AuthMode) => navigate({ page: 'Home', workspace: false, setup: false, auth })
+  const signOut = async () => {
+    if (!supabase) return
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+    setAuthSession(null)
+    openPage('Home')
+  }
+  const openLesson = (id = lessonProgress.currentLessonId) => {
+    const next = { ...lessonProgress, currentLessonId: id }
+    setLessonProgress(next)
+    navigate({ page: 'Learn', workspace: true, setup: false })
+  }
+  const startSetup = () => { try { sessionStorage.removeItem('mosaic-setup-step') } catch { /* Setup remains usable without session storage. */ } navigate({ page: 'Home', workspace: false, setup: true }) }
+  const openSensory = () => { try { sessionStorage.removeItem('mosaic-sensory-step') } catch { /* Optional navigation memory. */ } setSensoryReturn(route); navigate({ page: 'Settings', workspace: false, setup: false, sensory: true }) }
+  const finishSetup = () => {
+    setPreferences({ ...preferences, onboardingComplete: true })
+    try { sessionStorage.removeItem('mosaic-setup-step') } catch { /* Preferences are saved separately. */ }
+    openLesson()
+  }
+  const changeDifficulty = (difficulty: Difficulty | null) => setLessonProgress((progress) => setDifficultyOverride(progress, difficulty))
+  const inWorkspace = route.page === 'Learn' && route.workspace && !route.setup
+  const isHome = route.page === 'Home' && !route.setup && !route.sensory && !route.auth
+  return <div className={`app-shell${isHome ? ' reference-landing-shell' : ''}${inWorkspace && preferences.focusMode ? ' app-focus-mode' : ''}`} onClickCapture={(event) => { const target = event.target; if (target instanceof Element && target.closest('button') && !target.closest('[data-sound-control]')) void soundEngine.interaction() }}>
+    <a className="skip-link" href="#main-content" onClick={(event) => { event.preventDefault(); document.getElementById('main-content')?.focus() }}>Skip to content</a>
+    <header className="topbar"><div className="topbar-inner"><Brand /><nav className="main-nav" aria-label="Main navigation">{pages.map((page) => <button className={`nav-link${route.page === page && !route.setup && !route.sensory && !route.auth ? ' active' : ''}`} key={page} type="button" aria-current={route.page === page && !route.setup && !route.sensory && !route.auth ? 'page' : undefined} onClick={() => openPage(page)}><NavigationIcon page={page} />{page}</button>)}</nav><button type="button" className="preferences-shortcut" onClick={() => openPage('Settings')} aria-label="Open accessibility and learning preferences"><span aria-hidden="true">Aa</span><span>Preferences</span></button><ProfileMenu key={routeHash(route)} session={authSession} authReady={authReady} onNavigate={openAuth} onSignOut={signOut} /></div></header>
+    <div className={`sync-banner sync-${syncStatus}`} role={syncStatus === 'failed' || syncStatus === 'conflict' ? 'alert' : 'status'} aria-live="polite"><span>{syncStatus === 'guest' ? 'Guest · Saved on this device' : syncStatus === 'loading' ? 'Loading cloud progress…' : syncStatus === 'ready' ? 'Cloud ready · Nothing saved yet' : syncStatus === 'saving' ? 'Saving to cloud…' : syncStatus === 'saved' ? 'Saved to cloud' : syncStatus === 'conflict' ? 'Sync needs your choice' : 'Sync Failed'}</span>{syncMessage && <span>{syncMessage}</span>}{(syncStatus === 'failed' || syncStatus === 'conflict' && !conflict) && <button type="button" className="text-button" onClick={retry}>{syncStatus === 'conflict' ? 'Review copies' : 'Retry sync'}</button>}</div>
+    {dataReady && <AmbientControls preferences={preferences} onChange={setPreferences} />}
+    <main id="main-content" tabIndex={-1} className={inWorkspace ? 'main-content workspace-main' : 'main-content'}>
+      {conflict ? <section className="sync-decision page" aria-labelledby="sync-decision-title"><h1 id="sync-decision-title">Choose which saved work to open</h1><p>This account has a cloud copy and unsynced work from this device. We have not replaced either copy.</p><div className="sync-decision-actions"><button type="button" className="button button-primary" onClick={useCloud}>Open cloud copy</button><button type="button" className="button button-secondary" onClick={useDevice}>Use this device’s copy and replace cloud fields</button></div><p>Choosing the device copy can replace newer cloud edits. The cloud copy will stay unchanged until its save succeeds.</p></section> : route.auth ? <AuthPage key={route.auth} mode={route.auth} preferences={preferences} session={authSession} authReady={authReady} callbackStatus={callbackStatus} pendingEmail={pendingEmail} onPendingEmail={setPendingEmail} onNavigate={openAuth} onGuest={() => openPage('Home')} canImport={canImport && dataReady} onImport={importGuest} syncStatus={syncStatus} /> : !dataReady ? <section className="sync-decision page" role="status"><h1>{syncStatus === 'failed' ? 'Cloud progress could not load' : 'Opening your learning space…'}</h1><p>{syncMessage || 'Checking your saved lessons and preferences.'}</p>{syncStatus === 'failed' && <button type="button" className="button button-primary" onClick={retry}>Try again</button>}</section> : route.sensory ? <SensoryMatcher preferences={preferences} onChange={setPreferences} onFinish={() => navigate(sensoryReturn)} onExit={() => navigate(sensoryReturn)} /> : route.setup ? <Onboarding preferences={preferences} progress={lessonProgress} onChange={setPreferences} onDifficulty={changeDifficulty} onFinish={finishSetup} onBack={() => openPage('Home')} /> : <>
+        {canImport && <section className="guest-import-banner" aria-label="Guest progress available"><div><strong>Bring your guest progress into this account?</strong><p>Your cloud progress stays intact. Conflicting drafts are kept as separate copies.</p></div><button type="button" className="button button-secondary" onClick={importGuest}>Import guest progress</button></section>}
+        {route.page === 'Home' && <HomePage preferences={preferences} progress={lessonProgress} onSelectLesson={openLesson} onStart={() => preferences.onboardingComplete ? openLesson() : startSetup()} onPath={() => openPage('Learn')} onSetup={startSetup} onPreferencesChange={setPreferences} onSensory={openSensory} />}
+        {route.page === 'Learn' && (route.workspace ? <Workspace key={activeUserId ?? 'guest'} preferences={preferences} progress={lessonProgress} onProgressChange={setLessonProgress} onPreferencesChange={setPreferences} onBackToPath={() => openPage('Learn')} onOpenSettings={openSensory} /> : <LearningPath preferences={preferences} progress={lessonProgress} onSelectLesson={(id: ConceptId) => openLesson(id)} />)}
+        {route.page === 'Progress' && <ProgressPage preferences={preferences} progress={lessonProgress} onSelectLesson={openLesson} />}
+        {route.page === 'Keyboard Program' && <KeyboardProgram />}
+        {route.page === 'Settings' && <SettingsPage preferences={preferences} progress={lessonProgress} onChange={setPreferences} onDifficulty={changeDifficulty} onSetup={startSetup} onSensory={openSensory} onLesson={() => openLesson()} />}
+      </>}
+    </main>{dataReady && !route.setup && !route.sensory && !route.auth && !inWorkspace && (route.page === 'Home' || route.page === 'Learn') && <WorldPicker preferences={preferences} onChange={setPreferences} />}<footer className="site-footer"><Brand compact /><a href="#keyboards">Accessible Keyboard Program</a><span>A little progress, at your pace.</span><span>Python fundamentals · Made for your way of learning</span></footer>
+  </div>
 }
-
-interface HomePageProps { preferences: UserPreferences; progress: LessonProgress; onSetup: () => void; onLearn: () => void; onSelectLesson: (lessonId: ConceptId) => void; onSettings: () => void }
-function HomePage({ preferences, progress, onSetup, onLearn, onSelectLesson, onSettings }: HomePageProps) {
-  const ready = preferences.onboardingComplete
-  const interestName = preferences.interest === 'custom' ? preferences.customTopic : preferences.interest
-  const interestLabel = interestName ? `${interestName[0].toUpperCase()}${interestName.slice(1)}` : 'Choose a topic'
-  return <>
-    <section className="welcome-hero">
-      <div className="hero-copy">
-        <span className="eyebrow"><span className="eyebrow-dot" /> YOUR PYTHON LEARNING SPACE</span>
-        <h1>Learn Python, <em>your way.</em></h1>
-        <p>A welcoming place to build confidence with code. Choose a topic you love, set a comfortable pace, and take one small step at a time.</p>
-        <div className="hero-actions"><button className="button button-primary" onClick={ready ? onLearn : onSetup}>{ready ? 'Open your lesson' : 'Personalize your space'} <span aria-hidden="true">→</span></button><span className="no-pressure">No rush. You’re in control.</span></div>
-      </div>
-      <WorkspacePreview onOpen={() => onSelectLesson(lessons[0].id)} />
-    </section>
-    <section className="home-content" aria-label="Your learning dashboard">
-      <div className="section-heading"><div><span className="eyebrow muted-eyebrow">YOUR DASHBOARD</span><h2>{ready ? `Welcome back${preferences.interest ? `, ${interestLabel.toLowerCase()} learner` : ''}` : 'A good place to begin'}</h2></div>{ready && <button className="text-button" onClick={onSettings}>Edit preferences <span aria-hidden="true">↗</span></button>}</div>
-      <div className="dashboard-stats"><article><span className="stat-icon teal-icon" aria-hidden="true">◷</span><div><small>LESSONS COMPLETE</small><strong>{progress.completedLessonIds.length} <span>/ {lessons.length}</span></strong></div></article><article><span className="stat-icon orange-icon" aria-hidden="true">✦</span><div><small>CURRENT LESSON</small><strong>{lessons.find((lesson) => lesson.id === progress.currentLessonId)?.title ?? lessons[0].title}</strong></div></article><article><span className="stat-icon navy-icon" aria-hidden="true">⌁</span><div><small>YOUR TOPIC</small><strong>{interestLabel}</strong></div></article></div>
-      <div className="dashboard-grid">
-        <article className="lesson-card"><div className="lesson-icon" aria-hidden="true">{progress.completedLessonIds.length ? '↗' : '01'}</div><div className="lesson-info"><span className="card-kicker">{progress.completedLessonIds.length ? `${progress.completedLessonIds.length} LESSON${progress.completedLessonIds.length === 1 ? '' : 'S'} COMPLETE` : 'YOUR FIRST STEP · 5 MIN'}</span><h3>{progress.completedLessonIds.length ? 'Keep your momentum' : 'Meet your first Python line'}</h3><p>{ready ? 'Your code draft saves on this device. Continue the current lesson whenever you are ready.' : 'Set up your space, then take a first look at Python and how code is written.'}</p><button className="button button-dark" onClick={ready ? onLearn : onSetup}>{ready ? 'Continue lesson' : 'Set up your space'} <span aria-hidden="true">→</span></button></div></article>
-        <aside className="next-card"><span className="card-kicker">RECOMMENDED NEXT STEP</span><span className="next-step-number">↗</span><h3>{conceptNames[progress.recommendation.conceptId]}</h3><p>{progress.recommendation.reason}</p><button className="button button-soft" onClick={() => onSelectLesson(progress.recommendation.conceptId)}>Open recommendation</button></aside>
-      </div>
-    </section>
-    <Curriculum onSelectLesson={onSelectLesson} />
-  </>
-}
-
-function WorkspacePreview({ onOpen }: { onOpen: () => void }) {
-  return <button className="workspace-preview" type="button" onClick={onOpen} aria-label="Open the Hello, Python lesson workspace">
-    <div className="preview-top"><span className="preview-dots"><i /><i /><i /></span><span>LESSON WORKSPACE</span><span className="preview-open">↗</span></div>
-    <div className="preview-content"><div className="preview-sidebar"><span>LESSON 01</span><b>● &nbsp;Hello, Python</b><small>○ &nbsp;Variables</small><small>○ &nbsp;Decisions</small></div><div className="preview-editor"><span className="preview-file">main.py <small>PREVIEW</small></span><div><i>1</i><code><b>print</b>(<em>"Hello, world!"</em>)</code></div><div><i>2</i><code /></div><div><i>3</i><code><span># one line at a time</span></code></div></div></div>
-    <div className="preview-foot"><span><i /> Editor preview</span><span>Open workspace <b>→</b></span></div>
-  </button>
-}
-
-function Curriculum({ onSelectLesson }: { onSelectLesson: (lessonId: ConceptId) => void }) {
-  return <section className="curriculum-section"><div className="section-heading"><div><span className="eyebrow muted-eyebrow">THE LEARNING PATH</span><h2>A clear path, one idea at a time.</h2></div><span className="curriculum-caption">Beginner Python · {lessons.length} lessons</span></div><ol className="roadmap">{lessons.map((lesson, index) => <li key={lesson.id} className={index === 0 ? 'roadmap-current' : ''}><button type="button" onClick={() => onSelectLesson(lesson.id)} aria-label={`Open lesson ${index + 1}: ${lesson.title}`}><span className="roadmap-marker">{String(index + 1).padStart(2, '0')}</span><span className="roadmap-copy"><strong>{lesson.title}</strong><small>{index === 0 ? 'Start here · 5 min' : 'Open lesson'}</small></span><span className="roadmap-arrow" aria-hidden="true">→</span></button></li>)}</ol></section>
-}
-
-interface OnboardingProps { preferences: UserPreferences; onChange: (next: UserPreferences) => void; onBack: () => void; onFinish: () => void }
-function Onboarding({ preferences, onChange, onBack, onFinish }: OnboardingProps) {
-  return <section className="onboarding-page"><button type="button" className="back-button" onClick={onBack}>← <span>Back</span></button><div className="onboarding-heading"><span className="eyebrow muted-eyebrow">MAKE THIS SPACE YOURS</span><h1>A few choices, all yours.</h1><p>There are no right answers. You can update these anytime in Settings.</p></div><div className="form-panel"><PreferenceForm preferences={preferences} onChange={onChange} /></div><div className="onboarding-actions"><span className="privacy-note">Your preferences stay on this device.</span><button className="button button-primary" onClick={onFinish} disabled={!preferences.interest || (preferences.interest === 'custom' && !preferences.customTopic.trim())}>Save and continue <span aria-hidden="true">→</span></button></div></section>
-}
-
-function ProgressPage({ progress, onLearn }: { progress: LessonProgress; onLearn: () => void }) {
-  const completed = progress.completedLessonIds.length
-  const successes = progress.completedExerciseIds.length
-  const improvement = recentImprovement(progress)
-  const practicing = conceptOrder.filter((id) => (id === progress.currentLessonId || statsFor(progress, id).attempts > 0) && !progress.completedLessonIds.includes(id))
-  return <section className="subpage"><span className="eyebrow muted-eyebrow">MY PROGRESS</span><h1>Your journey, at your pace.</h1><p className="subpage-lede">Mastery is an estimate of your performance on MOSAIC exercises. It is not a measure of intelligence or general coding ability. Time spent does not affect your score.</p>
-    <div className="progress-card"><div className="progress-ring" aria-label={`${completed} of ${lessons.length} concepts completed`}><span>{completed}<small> / {lessons.length}</small></span></div><div><span className="card-kicker">YOUR LEARNING RECORD</span><h2>{completed} of {lessons.length} concepts completed</h2><p>{successes} distinct challenge{successes === 1 ? '' : 's'} solved from {progress.attempts.length} submission{progress.attempts.length === 1 ? '' : 's'}.</p><p>{practicing.length ? `Currently practicing: ${practicing.map((id) => conceptNames[id]).join(', ')}.` : 'Choose any concept to begin or review.'}</p><p>{improvement === null ? 'Complete four submissions to see a recent trend.' : `Recent success rate changed by ${improvement >= 0 ? '+' : ''}${improvement} percentage points compared with the previous attempts.`}</p><button className="button button-dark progress-button" onClick={onLearn}>Continue learning <span aria-hidden="true">→</span></button></div></div>
-    <section className="learning-map" aria-label="Python concept learning map"><h2>Your Python learning map</h2><ol>{conceptOrder.map((id, index) => { const stats = statsFor(progress, id); return <li key={id}><span className="map-step">{index + 1}</span><div><strong>{conceptNames[id]}</strong><small>{progress.completedLessonIds.includes(id) ? 'Completed' : stats.attempts ? 'In practice' : 'Not started'} · {stats.attempts} attempt{stats.attempts === 1 ? '' : 's'} · {stats.hintsRequested} hint{stats.hintsRequested === 1 ? '' : 's'}</small><div className="mastery-track" role="progressbar" aria-label={`${conceptNames[id]} mastery estimate`} aria-valuenow={stats.mastery} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${stats.mastery}%` }} /></div><small>Mastery estimate: {stats.mastery} / 100</small></div></li> })}</ol></section>
-    <aside className="progress-recommendation"><span className="card-kicker">RECOMMENDED NEXT</span><h2>{conceptNames[progress.recommendation.conceptId]} · {progress.recommendation.difficulty}</h2><p>{progress.recommendation.reason}</p></aside>
-  </section>
-}
-
-interface SettingsPageProps { preferences: UserPreferences; onChange: (next: UserPreferences) => void; onSetup: () => void }
-function SettingsPage({ preferences, onChange, onSetup }: SettingsPageProps) {
-  return <section className="subpage settings-page"><span className="eyebrow muted-eyebrow">SETTINGS</span><h1>Your space, your way.</h1><p className="subpage-lede">Adjust your learning theme and visual preferences whenever you need.</p><div className="form-panel settings-panel"><PreferenceForm preferences={preferences} onChange={onChange} /></div><div className="settings-save"><span aria-live="polite">Changes save automatically on this device.</span>{!preferences.onboardingComplete && <button className="button button-primary" onClick={onSetup}>Finish setting up <span aria-hidden="true">→</span></button>}</div></section>
-}
-
 export default App

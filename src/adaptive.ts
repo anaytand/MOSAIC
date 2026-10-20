@@ -1,19 +1,19 @@
 import type { AttemptRecord, ConceptId, ConceptStats, Difficulty, ErrorCategory, HintRecord, LessonProgress, Recommendation } from './types.ts'
 
-export const conceptOrder: ConceptId[] = ['hello-python', 'variables', 'conditions', 'loops', 'functions']
+export const conceptOrder: ConceptId[] = ['hello-python', 'variables', 'conditions', 'loops', 'functions', 'lists', 'strings', 'dictionaries', 'user-input', 'numbers', 'combining-concepts', 'final-project']
 export const dependencies: Record<ConceptId, ConceptId[]> = {
-  'hello-python': [], variables: ['hello-python'], conditions: ['variables'], loops: ['conditions'], functions: ['loops'],
+  'hello-python': [], variables: ['hello-python'], conditions: ['variables'], loops: ['conditions'], functions: ['loops'], lists: ['functions'], strings: ['lists'], dictionaries: ['strings'], 'user-input': ['dictionaries'], numbers: ['user-input'], 'combining-concepts': ['numbers'], 'final-project': ['combining-concepts'],
 }
 export const conceptNames: Record<ConceptId, string> = {
-  'hello-python': 'Print Statements', variables: 'Variables', conditions: 'Conditions', loops: 'Loops', functions: 'Functions',
+  'hello-python': 'Print Statements', variables: 'Variables', conditions: 'Conditions', loops: 'Loops', functions: 'Functions', lists: 'Lists and Collections', strings: 'Strings and String Methods', dictionaries: 'Dictionaries', 'user-input': 'User Input', numbers: 'Numbers and Calculations', 'combining-concepts': 'Combining Concepts', 'final-project': 'Final Project',
 }
 const levels: Difficulty[] = ['guided', 'independent', 'challenge']
 export const isConceptId = (value: unknown): value is ConceptId => typeof value === 'string' && conceptOrder.includes(value as ConceptId)
 export const isDifficulty = (value: unknown): value is Difficulty => typeof value === 'string' && levels.includes(value as Difficulty)
 
 export function emptyProgress(): LessonProgress {
-  return { version: 1, currentLessonId: 'hello-python', drafts: {}, completedLessonIds: [], completedExerciseIds: [], attempts: [], hints: [],
-    timeSpentMs: { 'hello-python': 0, variables: 0, conditions: 0, loops: 0, functions: 0 }, difficultyOverride: null,
+  return { version: 1, projectSnapshots: {}, inputDrafts: {}, currentLessonId: 'hello-python', drafts: {}, completedLessonIds: [], completedExerciseIds: [], attempts: [], hints: [],
+    timeSpentMs: { 'hello-python': 0, variables: 0, conditions: 0, loops: 0, functions: 0, lists: 0, strings: 0, dictionaries: 0, 'user-input': 0, numbers: 0, 'combining-concepts': 0, 'final-project': 0 }, difficultyOverride: null,
     lastCompletedExerciseId: null, recommendation: { conceptId: 'hello-python', difficulty: 'guided', reason: 'Start with a short print statement.' } }
 }
 
@@ -66,7 +66,7 @@ export function recommend(progress: LessonProgress): Recommendation {
     }
   }
   const conceptId = conceptOrder.find((id) => !progress.completedLessonIds.includes(id)) ?? progress.currentLessonId
-  return { conceptId, difficulty: progress.difficultyOverride ?? suggestedDifficulty(progress, conceptId), reason: progress.completedLessonIds.length === conceptOrder.length ? 'All five concepts are complete. Choose one to revisit or try a new level.' : `Review ${conceptNames[conceptId].toLowerCase()} when you are ready.` }
+  return { conceptId, difficulty: progress.difficultyOverride ?? suggestedDifficulty(progress, conceptId), reason: progress.completedLessonIds.length === conceptOrder.length ? 'All twelve concepts are complete. Choose one to revisit or try a new level.' : `Review ${conceptNames[conceptId].toLowerCase()} when you are ready.` }
 }
 function withRecommendation(progress: LessonProgress): LessonProgress { return { ...progress, recommendation: recommend(progress) } }
 export function recordAttempt(progress: LessonProgress, attempt: AttemptRecord): LessonProgress {

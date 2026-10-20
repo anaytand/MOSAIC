@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+mosaic-reference/
+.env
+.env.local
+.env.*.local

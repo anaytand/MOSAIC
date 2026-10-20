@@ -11,6 +11,9 @@
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@fontsource/jetbrains-mono": "https://registry.npmjs.org/@fontsource/jetbrains-mono/-/jetbrains-mono-5.3.0.tgz",
+    "@fontsource/lexend": "https://registry.npmjs.org/@fontsource/lexend/-/lexend-5.3.0.tgz",
+    "@supabase/supabase-js": "^2.118.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
