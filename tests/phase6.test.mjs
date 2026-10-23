@@ -12,7 +12,7 @@ const { CompanionPanel } = await import('../src/components/CompanionPanel.tsx')
 const noop = () => {}
 
 test('each interest selects a consistent SVG companion and supports all six states', () => {
-  for (const [interest, expected] of [[null, 'robot'], ['ocean', 'shark'], ['basketball', 'basketball'], ['space', 'astronaut'], ['trains', 'train'], ['animals', 'fox'], ['music', 'music']]) {
+  for (const [interest, expected] of [[null, 'robot'], ['ocean', 'shark'], ['basketball', 'basketball'], ['space', 'astronaut'], ['trains', 'train'], ['animals', 'dinosaur'], ['music', 'music']]) {
     const preferences = { ...defaultPreferences, interest }
     assert.equal(companionId(preferences), expected)
     for (const state of ['idle', 'welcoming', 'explaining', 'thinking', 'encouraging', 'celebrating']) {
