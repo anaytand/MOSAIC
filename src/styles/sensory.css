@@ -52,3 +52,31 @@ html[data-theme='dark'] .sensory-preview-scene { --sky1: var(--decor-dark-sky1);
 }
 
 .lp-wordmark__row--solid { color: var(--decor-wordmark, var(--wm)); }
+
+/* ---------- Reading and comfort tools ---------- */
+/* Warm screen tint: a fixed amber layer. --warm-tint is 0 (off) to 1. */
+html::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 2147483000; background: #ff9f43; mix-blend-mode: multiply; opacity: calc(var(--warm-tint, 0) * .22); }
+html[data-theme='dark']::after { mix-blend-mode: soft-light; opacity: calc(var(--warm-tint, 0) * .35); }
+/* Wider spacing for easier reading. Code keeps normal spacing so columns still line up. */
+html[data-reading-spacing='wide'] body { letter-spacing: .035em; word-spacing: .14em; }
+html[data-reading-spacing='wide'] :is(p, li, small, label, summary, legend) { line-height: 1.9; }
+html[data-reading-spacing='wide'] :is(pre, code, .monaco-editor, .monaco-editor *) { letter-spacing: normal; word-spacing: normal; }
+/* Reading guide: a soft band that follows the pointer. */
+.reading-guide { position: fixed; left: 0; right: 0; height: 2.4em; transform: translateY(-50%); pointer-events: none; z-index: 2147482000; background: color-mix(in srgb, var(--accent) 16%, transparent); border-block: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); }
+.comfort-controls { padding: 16px; border: 1px solid var(--line); border-radius: 16px; display: grid; gap: 12px; }
+.comfort-controls legend { font-size: 1rem; color: var(--text); }
+/* Break reminders */
+.break-reminder { position: fixed; left: 16px; bottom: 16px; z-index: 900; max-width: min(420px, calc(100vw - 32px)); padding: 16px 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--text); box-shadow: 0 10px 30px rgba(15, 26, 31, .14); }
+.break-reminder p { margin: 0 0 12px; }
+.break-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.break-overlay { position: fixed; inset: 0; z-index: 2147482500; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--paper) 94%, transparent); }
+.break-card { width: 100%; max-width: 460px; padding: 28px; border-radius: 20px; border: 1px solid var(--line); background: var(--surface); color: var(--text); text-align: center; }
+.break-breath { width: 72px; height: 72px; margin: 8px auto 20px; border-radius: 18px; background: var(--decor-accent, var(--teal)); opacity: .75; }
+html[data-motion='standard'] .break-breath { animation: mosaic-breathe 8s ease-in-out infinite; }
+@keyframes mosaic-breathe { 0%, 100% { transform: scale(.7); } 50% { transform: scale(1.15); } }
+/* Literal Mode */
+.literal-toggle { margin-left: 8px; }
+.literal-toggle[aria-pressed='true'] { font-weight: 700; text-decoration: underline; }
+.literal-steps { margin: 0 0 12px; padding-left: 1.2em; display: grid; gap: 6px; }
+.literal-done { margin: 0 0 8px; }
+.literal-story summary { cursor: pointer; color: var(--text-muted); }

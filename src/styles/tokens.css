@@ -12,8 +12,8 @@
   --text: #0F1A1F;
   --text-muted: #50666c;
   --editor: #fbfdfb;
-  --danger: #9b342e;
-  --danger-bg: #fff1ee;
+  --danger: #7a4a00; /* calm amber-brown, not red */
+  --danger-bg: #fff6e4;
   --success: #205c46;
   --success-bg: #e4f2ec;
   --focus: #aa5900;
@@ -46,8 +46,8 @@ html[data-theme='dark'] {
   --text: #eef6f3;
   --text-muted: #b8cbc9;
   --editor: #122127;
-  --danger: #ffc1b5;
-  --danger-bg: #3b292b;
+  --danger: #f6d28b;
+  --danger-bg: #3a3222;
   --success: #c0eed5;
   --success-bg: #203c32;
   --focus: #EBA25E;
