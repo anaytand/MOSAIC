@@ -10,6 +10,7 @@ export function sensoryAttributes(preferences: UserPreferences, systemReducedMot
     simplified: String(preferences.simplifiedInterface || preferences.visualDensity === 'minimal'), density: preferences.layoutDensity,
     visualDensity: preferences.visualDensity,
     focus: String(preferences.focusMode), intensity: preferences.colorIntensity,
+    readingSpacing: preferences.readingSpacing ?? 'standard', readingGuide: String(preferences.readingGuide === true), literal: String(preferences.literalMode === true),
   }
 }
 export function editorTextSize(preferences: UserPreferences): number {

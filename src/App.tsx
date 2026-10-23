@@ -20,6 +20,7 @@ import { SensoryMatcher } from './components/SensoryMatcher'
 import { Onboarding } from './components/Onboarding'
 import { SettingsPage } from './components/SettingsPage'
 import { Workspace } from './components/Workspace'
+import { BreakReminder, ReadingGuide } from './components/ComfortTools'
 import { getLearningTheme } from './themes/catalog'
 import { setDifficultyOverride } from './adaptive'
 import { defaultPreferences } from './preferences'
@@ -99,6 +100,7 @@ function App() {
     const motionFrame = requestAnimationFrame(() => applyMotionRates(root, effectiveMotion(preferences, motionQuery.matches)))
     motionQuery.addEventListener('change', applySensory)
     for (const [key, value] of Object.entries(sensoryVisualVariables(preferences))) root.style.setProperty(key, value)
+root.style.setProperty('--warm-tint', String((preferences.warmTint ?? 0) / 100))
     root.dataset.adventure = getLearningTheme(preferences)?.id ?? 'custom'
     soundEngine.configure(preferences)
     ambientEngine.configure(preferences, ambientTrack(preferences))
@@ -160,7 +162,7 @@ function App() {
         {route.page === 'Keyboard Program' && <KeyboardProgram />}
         {route.page === 'Settings' && <SettingsPage preferences={preferences} progress={lessonProgress} onChange={setPreferences} onDifficulty={changeDifficulty} onSetup={startSetup} onSensory={openSensory} onLesson={() => openLesson()} />}
       </>}
-    </main>{dataReady && !route.setup && !route.sensory && !route.auth && !inWorkspace && (route.page === 'Home' || route.page === 'Learn') && <WorldPicker preferences={preferences} onChange={setPreferences} />}<footer className="site-footer"><Brand compact /><a href="#keyboards">Accessible Keyboard Program</a><span>A little progress, at your pace.</span><span>Python fundamentals · Made for your way of learning</span></footer>
+    </main>{dataReady && !route.setup && !route.sensory && !route.auth && !inWorkspace && (route.page === 'Home' || route.page === 'Learn') && <WorldPicker preferences={preferences} onChange={setPreferences} />}{dataReady && <><ReadingGuide enabled={preferences.readingGuide === true} /><BreakReminder minutes={preferences.breakReminderMinutes ?? 0} /></>}<footer className="site-footer"><Brand compact /><a href="#keyboards">Accessible Keyboard Program</a><span>A little progress, at your pace.</span><span>Python fundamentals · Made for your way of learning</span></footer>
   </div>
 }
 export default App

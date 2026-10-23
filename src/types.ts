@@ -16,7 +16,7 @@ export interface UserPreferences {
   musicVolume: number
   musicDuringExecution: boolean
   companionEnabled: boolean
-  avatarId: 'robot' | 'shark' | 'basketball' | 'astronaut' | 'train' | 'fox' | 'music' | null
+  avatarId: 'robot' | 'shark' | 'basketball' | 'astronaut' | 'train' | 'fox' | 'dinosaur' | 'music' | null
   sensoryVersion: 2
   masterImmersion: number
   colorLevel: number
@@ -40,6 +40,16 @@ export interface UserPreferences {
   layoutDensity: 'compact' | 'spacious'
   focusMode: boolean
   onboardingComplete: boolean
+  /** Exact, numbered instructions, plain wording and factual feedback. */
+  literalMode: boolean
+  /** Wider letter, word and line spacing for easier reading. */
+  readingSpacing: 'standard' | 'wide'
+  /** A soft band that follows the pointer to help keep your place. */
+  readingGuide: boolean
+  /** 0-100: strength of a warm amber screen tint. */
+  warmTint: number
+  /** 0 is off; otherwise minutes of work between gentle break reminders. */
+  breakReminderMinutes: number
 }
 export type AppPage = 'Home' | 'Learn' | 'Progress' | 'Settings' | 'Keyboard Program'
 
