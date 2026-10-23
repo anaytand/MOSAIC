@@ -94,7 +94,7 @@ const introductoryThemes: Record<ThemeId, Omit<LearningTheme, 'chapters'> & { ch
   music: {
     id: 'music', name: 'Music Coding Studio', projectName: 'Mosaic Sessions playlist desk', illustration: 'music',
     description: 'Plan a Mosaic Sessions set. Store artist details, evaluate the running time, and analyze a playlist with Python.',
-    palette: { accent: '#a04470', soft: '#faeaf2', ink: '#6e254a', darkAccent: '#eeaad0', darkSoft: '#3c2938', darkInk: '#ffe0f1' },
+    palette: { accent: '#6a4aa8', soft: '#f1ebfa', ink: '#3d2760', darkAccent: '#cdb8f3', darkSoft: '#2f283f', darkInk: '#efe6ff' },
     introduction: ['Mosaic Sessions', 'Welcome to the studio!'],
     fields: [{ key: 'music_project', label: 'Music project', value: 'Mosaic Sessions' }, { key: 'venue', label: 'Venue', value: 'Studio Eight' }, { key: 'set_minutes', label: 'Set length (minutes)', value: 24 }, { key: 'intermission_after', label: 'Intermission threshold (minutes)', value: 18 }, { key: 'artist_name', label: 'Artist', value: 'Casey' }, { key: 'tracks_ready', label: 'Tracks ready', value: 12 }],
     decision: { ready: 'Plan an intermission', wait: 'Keep the set playing', extraReady: 'Track goal reached', extraWait: 'Prepare more tracks' },
