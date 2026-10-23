@@ -17,6 +17,7 @@ import { ProjectPreview } from './ProjectPreview'
 import { guidanceLabels, interestLabel } from '../presentation'
 import type { ExecutionTrace } from '../executionTrace'
 import { WorldSimulation } from './WorldSimulation'
+import { doneWhen, literalSteps, literalText } from '../literal'
 
 type RuntimeState = 'loading' | 'ready' | 'running' | 'failed' | 'stopped' | 'timed-out'
 type WorkspaceTab = 'instructions' | 'editor' | 'output'
@@ -48,6 +49,7 @@ function humanError(error: string): string {
 }
 
 export function Workspace({ preferences, progress, onProgressChange, onPreferencesChange, onBackToPath, onOpenSettings }: WorkspaceProps) {
+const literal = preferences.literalMode === true
   const initialLesson = getLearningLesson(progress.currentLessonId, progress.difficultyOverride ?? suggestedDifficulty(progress, progress.currentLessonId), preferences)
   const [activeLessonId, setActiveLessonId] = useState(initialLesson.id)
   const [inputDraft, setInputDraft] = useState(progress.inputDrafts[initialLesson.exerciseId] ?? initialLesson.defaultInputs?.join('\n') ?? '')
@@ -329,12 +331,12 @@ export function Workspace({ preferences, progress, onProgressChange, onPreferenc
     <div className="workspace-tabs" role="tablist" aria-label="Learning workspace panels" onKeyDown={(event) => selectMobileTab(event, mobileTab)}>{(['instructions', 'editor', 'output'] as const).map((tab) => <button key={tab} id={`workspace-tab-${tab}`} role="tab" type="button" aria-selected={mobileTab === tab} aria-controls={`workspace-panel-${tab}`} tabIndex={mobileTab === tab ? 0 : -1} onClick={() => setMobileTab(tab)}>{tab === 'instructions' ? 'Lesson' : tab === 'editor' ? 'Code' : 'Output & help'}</button>)}</div>
     <div className="workspace-layout" aria-busy={runtimeState === 'running'}>
       <aside className="workspace-sidebar" id="workspace-panel-instructions" role="tabpanel" aria-labelledby="workspace-tab-instructions" data-mobile-active={mobileTab === 'instructions'}>
-        <div className="lesson-intro-mark"><CompanionArt preferences={preferences} key={currentLesson.exerciseId} state="welcoming" /><span className="panel-title">YOUR LESSON</span></div><label className="difficulty-control">Guidance<select value={progress.difficultyOverride ?? 'recommended'} disabled={runtimeState === 'running'} onChange={(event) => changeDifficulty(event.target.value)}><option value="recommended">Adaptive · {guidanceLabels[suggestedDifficulty(progress, conceptId)]}</option><option value="guided">Step by Step</option><option value="independent">Balanced</option><option value="challenge">Explore</option></select></label><span className="status-tag">Current: {guidanceLabels[difficulty]}</span>
+        <div className="lesson-intro-mark"><CompanionArt preferences={preferences} key={currentLesson.exerciseId} state="welcoming" /><span className="panel-title">YOUR LESSON</span></div><label className="difficulty-control">Guidance<select value={progress.difficultyOverride ?? 'recommended'} disabled={runtimeState === 'running'} onChange={(event) => changeDifficulty(event.target.value)}><option value="recommended">Adaptive · {guidanceLabels[suggestedDifficulty(progress, conceptId)]}</option><option value="guided">Step by Step</option><option value="independent">Balanced</option><option value="challenge">Explore</option></select></label><span className="status-tag">Current: {guidanceLabels[difficulty]}</span><button type="button" className="text-button literal-toggle" aria-pressed={literal} title="Literal Mode shows exact numbered steps, plain wording and factual feedback." onClick={() => onPreferencesChange({ ...preferences, literalMode: !literal })}>Literal Mode: {literal ? 'On' : 'Off'}</button>
         <article className="instruction-card">
           <span className="eyebrow">THE GOAL</span>
-          <h2>{currentLesson.objective}</h2>
-          {currentLesson.narrative && <p className="lesson-narrative">{currentLesson.narrative}</p>}
-          <div className="challenge-card"><h3 id="current-task" tabIndex={-1}>Your task</h3><p>{currentLesson.challenge}</p><pre aria-label={currentLesson.id === 'user-input' ? 'Example output for suggested inputs' : 'Expected program output'}>{currentLesson.expectedBehavior}</pre><small>{currentLesson.validationMode === 'required-line' ? 'Include each complete line. Extra output lines are welcome.' : currentLesson.validationMode === 'exact-output' ? 'Match the requested output, including its order.' : 'Your code is checked against the task’s behavior.'}</small></div>
+          <h2>{literal ? literalText(currentLesson.objective) : currentLesson.objective}</h2>
+          {currentLesson.narrative && (literal ? <details className="lesson-narrative literal-story"><summary>Story (optional)</summary><p>{currentLesson.narrative}</p></details> : <p className="lesson-narrative">{currentLesson.narrative}</p>)}
+          <div className="challenge-card"><h3 id="current-task" tabIndex={-1}>Your task</h3><p>{literal ? literalText(currentLesson.challenge) : currentLesson.challenge}</p>{literal && <><ol className="literal-steps">{literalSteps(currentLesson.instructions).map((step) => <li key={step}>{step}</li>)}</ol><p className="literal-done"><strong>{doneWhen(currentLesson.validationMode)}</strong></p></>}<pre aria-label={currentLesson.id === 'user-input' ? 'Example output for suggested inputs' : 'Expected program output'}>{currentLesson.expectedBehavior}</pre><small>{currentLesson.validationMode === 'required-line' ? 'Include each complete line. Extra output lines are welcome.' : currentLesson.validationMode === 'exact-output' ? 'Match the requested output, including its order.' : 'Your code is checked against the task’s behavior.'}</small></div>
           {!theme && currentLesson.themeId && <p className="support-note">These extended missions use the Ocean research project. Your custom topic and earlier drafts are preserved.</p>}
           <CompanionPanel key={currentLesson.exerciseId} lesson={currentLesson} progress={progress} preferences={preferences} running={runtimeState === 'running'} result={hasRun || output.error ? output : undefined} errorExplanation={output.error ? humanError(output.error) : undefined} onPreferencesChange={onPreferencesChange} onHint={openHints} onStart={reviewTask} onContinue={continueToRecommendation} />
           <button className="button button-secondary mobile-code-action" type="button" onClick={() => { setMobileTab('editor'); document.getElementById('workspace-tab-editor')?.focus() }}>Open code editor →</button>
