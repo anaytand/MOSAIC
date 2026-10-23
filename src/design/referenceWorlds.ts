@@ -49,8 +49,8 @@ export const THEMES: Record<ThemeKey, Theme> = {
     vars: { sky1: '#C6DCEA', sky2: '#E2ECF1', sky3: '#EDF3F0', h1a: '#B7D3BE', h1b: '#8DB59A', h2a: '#9CC2A6', h2b: '#5F8F70', h3a: '#7FAE8C', h3b: '#4C7A5C', acc: '#3B8FBF', acct: '#2A6E96', acc2: '#EBA25E', deep: '#1E3A5F', dark: '#0E1518', card: '#151F23', line: '#2A3A40', page: '#F3F6F7', wm: 'rgba(30,58,95,0.9)', wmo: 'rgba(30,58,95,0.18)', hdr: '#0F1A1F' },
   },
   trains: {
-    label: 'Trains', dot: '#A8432F', world: 'Trains world', wordmark: 'ALL ABOARD · ALL ABOARD · ',
-    vars: { sky1: '#D6E3EC', sky2: '#E9EEF0', sky3: '#F1EFE8', h1a: '#B9C79A', h1b: '#93A673', h2a: '#9FB27E', h2b: '#76895A', h3a: '#85996A', h3b: '#5E7048', acc: '#A8432F', acct: '#A8432F', acc2: '#E8B44A', deep: '#2C3540', dark: '#15191E', card: '#1E242B', line: '#333C46', page: '#F4F2EE', wm: 'rgba(44,53,64,0.9)', wmo: 'rgba(44,53,64,0.18)', hdr: '#0F1A1F' },
+    label: 'Trains', dot: '#8A5524', world: 'Trains world', wordmark: 'ALL ABOARD · ALL ABOARD · ',
+    vars: { sky1: '#D6E3EC', sky2: '#E9EEF0', sky3: '#F1EFE8', h1a: '#B9C79A', h1b: '#93A673', h2a: '#9FB27E', h2b: '#76895A', h3a: '#85996A', h3b: '#5E7048', acc: '#8A5524', acct: '#8A5524', acc2: '#E8B44A', deep: '#2C3540', dark: '#15191E', card: '#1E242B', line: '#333C46', page: '#F4F2EE', wm: 'rgba(44,53,64,0.9)', wmo: 'rgba(44,53,64,0.18)', hdr: '#0F1A1F' },
   },
   dinosaurs: {
     label: 'Dinosaurs', dot: '#6C8A3E', world: 'Dinosaur world', wordmark: 'DINO WORLD · DINO WORLD · ',
@@ -74,7 +74,7 @@ export const THEMES: Record<ThemeKey, Theme> = {
   },
   basketball: {
     label: 'Basketball', dot: '#BA5828', world: 'Basketball world', wordmark: 'COURT SIDE · COURT SIDE · ',
-    vars: { sky1: '#FFD98A', sky2: '#FFE6B8', sky3: '#FFF1DE', h1a: '#DEA364', h1b: '#C78243', h2a: '#CF914F', h2b: '#AF6C31', h3a: '#B67A3C', h3b: '#8A5224', acc: '#BA5828', acct: '#99431B', acc2: '#F5C518', deep: '#14234D', dark: '#0C1226', card: '#141C38', line: '#25305A', page: '#FBF6ED', wm: 'rgba(20,35,77,0.9)', wmo: 'rgba(20,35,77,0.2)', hdr: '#0F1A1F' },
+    vars: { sky1: '#FFD98A', sky2: '#FFE6B8', sky3: '#FFF1DE', h1a: '#DEA364', h1b: '#C78243', h2a: '#CF914F', h2b: '#AF6C31', h3a: '#B67A3C', h3b: '#8A5224', acc: '#BA5828', acct: '#7A4A12', acc2: '#F5C518', deep: '#14234D', dark: '#0C1226', card: '#141C38', line: '#25305A', page: '#FBF6ED', wm: 'rgba(20,35,77,0.9)', wmo: 'rgba(20,35,77,0.2)', hdr: '#0F1A1F' },
   },
   animals: {
     label: 'Animals', dot: '#55702D', world: 'Wildlife world', wordmark: 'WILD LIFE · WILD LIFE · ',
