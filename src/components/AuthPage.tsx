@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { authActions } from '../lib/auth'
+import type { CallbackOutcome } from '../lib/authCallback'
 import { supabase } from '../lib/supabase'
 import { selectedWorld, THEMES } from '../design/worlds'
 import { getLearningTheme } from '../themes/catalog'
@@ -14,7 +15,8 @@ interface Props {
   preferences: UserPreferences
   session: Session | null
   authReady: boolean
-  callbackStatus: 'idle' | 'pending' | 'success' | 'error'
+  callbackStatus: CallbackOutcome['status'] | 'idle' | 'ready' | 'pending'
+  onVerifyLink: () => void
   pendingEmail: string
   client?: Pick<SupabaseClient, 'auth'> | null
   onPendingEmail: (email: string) => void
@@ -30,7 +32,17 @@ const titles: Record<AuthMode, string> = {
   'check-email': 'Check your email', confirmed: 'Confirming your email', account: 'Your account',
 }
 
-export function AuthPage({ mode, preferences, session, authReady, callbackStatus, pendingEmail, onPendingEmail, onNavigate, onGuest, canImport = false, onImport, syncStatus, client = supabase }: Props) {
+const callbackProblem: Record<Exclude<CallbackOutcome['status'], 'success' | 'already-authenticated'>, string> = {
+  expired: 'This link has expired. Request a new link and use the newest email.',
+  used: 'This link has already been used. Sign in if you confirmed your email, or request a new link.',
+  invalid: 'This link is invalid or does not match this action. Request a new link.',
+  missing: 'This link is missing its verification information. Open the full link from the email or request a new one.',
+  legacy: 'This link uses an older confirmation format. Request a new link after the email template has been updated.',
+  network: 'We could not reach Supabase to finish verification. Check your connection, then sign in or request a new link.',
+  unverified: 'A session was returned, but Supabase has not confirmed this email. Please request a new link.',
+}
+
+export function AuthPage({ mode, preferences, session, authReady, callbackStatus, onVerifyLink, pendingEmail, onPendingEmail, onNavigate, onGuest, canImport = false, onImport, syncStatus, client = supabase }: Props) {
   const [email, setEmail] = useState(pendingEmail)
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
@@ -41,6 +53,8 @@ export function AuthPage({ mode, preferences, session, authReady, callbackStatus
   const theme = getLearningTheme(preferences)
   const configured = client !== null
   const callbackComplete = authReady && callbackStatus === 'success' && !!session
+  const callbackPending = callbackStatus === 'pending' || !authReady
+  const callbackText = callbackStatus in callbackProblem ? callbackProblem[callbackStatus as keyof typeof callbackProblem] : callbackProblem.missing
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!client || busy) return
@@ -88,13 +102,15 @@ export function AuthPage({ mode, preferences, session, authReady, callbackStatus
   const formMode = mode === 'signup' || mode === 'login' || mode === 'forgot' || mode === 'check-email' || mode === 'reset' && callbackComplete && !message
   return <section className="auth-page page" aria-labelledby="auth-heading">
     <div className="auth-card">
-      <div className="auth-form-side"><span className="eyebrow">YOUR MOSAIC ACCOUNT · OPTIONAL</span><h1 id="auth-heading">{titles[mode]}</h1>
+      <div className="auth-form-side"><span className="eyebrow">YOUR MOSAIC ACCOUNT · OPTIONAL</span><h1 id="auth-heading">{mode === 'confirmed' && callbackComplete ? 'Email confirmed' : mode === 'confirmed' && callbackStatus === 'ready' ? 'Confirm your email' : titles[mode]}</h1>
         {mode === 'signup' && <p>Create an account to save lessons, code, and preferences across devices. You can import work from guest mode afterward.</p>}
         {mode === 'login' && <p>Sign in with your email and password, or keep learning as a guest.</p>}
         {mode === 'forgot' && <p>Enter your email and we’ll send a link if there’s an account for it.</p>}
         {mode === 'check-email' && <p>If confirmation is enabled for your account, open the link in your email to finish signing up. You can keep learning while you wait.</p>}
-        {mode === 'confirmed' && <p role="status">{callbackStatus === 'pending' || !authReady ? 'Checking your confirmation link…' : callbackComplete ? 'Your email is confirmed and you are signed in.' : 'This confirmation link could not be completed. It may have expired. Please try signing in or request another link.'}</p>}
-        {mode === 'reset' && <p role="status">{callbackStatus === 'pending' || !authReady ? 'Checking your password reset link…' : callbackComplete ? 'Enter a new password for your account.' : 'This reset link could not be completed. It may have expired. Request a new link to try again.'}</p>}
+        {mode === 'confirmed' && <p role={callbackPending || callbackComplete || callbackStatus === 'already-authenticated' || callbackStatus === 'ready' ? 'status' : 'alert'}>{callbackPending ? 'Checking your confirmation link…' : callbackComplete ? 'Your email is confirmed and you are signed in.' : callbackStatus === 'ready' ? 'Choose Confirm email to finish signing up. Your link will be used only when you press the button.' : callbackStatus === 'already-authenticated' ? 'A confirmed account is already signed in. This link was not verified again.' : callbackText}</p>}
+        {mode === 'reset' && <p role={callbackPending || callbackComplete || callbackStatus === 'ready' ? 'status' : 'alert'}>{callbackPending ? 'Checking your password reset link…' : callbackComplete ? 'Enter a new password for your account.' : callbackStatus === 'ready' ? 'Choose Verify reset link to continue. Your link will be used only when you press the button.' : callbackStatus === 'already-authenticated' ? 'A confirmed account is signed in, but this reset link was not verified. Request a new reset link to change your password.' : callbackText}</p>}
+        {(mode === 'confirmed' || mode === 'reset') && callbackStatus === 'ready' && <button type="button" className="button button-primary" onClick={onVerifyLink} disabled={!authReady}>{mode === 'confirmed' ? 'Confirm email' : 'Verify reset link'}</button>}
+        {mode === 'confirmed' && (callbackComplete || callbackStatus === 'already-authenticated') && <button type="button" className="button button-primary" onClick={onGuest}>Continue learning</button>}
         {mode === 'account' && <><p>{session ? `Signed in as ${session.user.email ?? 'your MOSAIC account'}.` : 'You are learning as a guest.'}</p><p>{session ? `Cloud progress: ${syncStatus === 'saved' ? 'Saved' : syncStatus === 'saving' ? 'Saving' : syncStatus === 'failed' ? 'Sync Failed' : syncStatus === 'conflict' ? 'Needs review' : syncStatus === 'ready' ? 'Ready' : 'Checking'}. Guest work stays on this device unless you choose to import it.` : 'Your work is saved on this device. An account is optional.'}</p>{session && canImport && onImport && <button type="button" className="button button-secondary" onClick={onImport}>Import guest progress</button>}</>}
         {!configured && <p role="alert" className="auth-error">Authentication is unavailable in this build. You can still use all lessons without an account.</p>}
         {configured && formMode && <form className="auth-form" onSubmit={(event) => { void submit(event) }}>
@@ -109,8 +125,8 @@ export function AuthPage({ mode, preferences, session, authReady, callbackStatus
           {mode !== 'login' && <button type="button" className="text-button" onClick={() => onNavigate('login')}>Log in</button>}
           {mode !== 'signup' && <button type="button" className="text-button" onClick={() => onNavigate('signup')}>Create account</button>}
           {mode === 'login' && <button type="button" className="text-button" onClick={() => onNavigate('forgot')}>Forgot password?</button>}
-          {(mode === 'reset' || mode === 'confirmed') && callbackStatus === 'error' && <button type="button" className="text-button" onClick={() => onNavigate(mode === 'reset' ? 'forgot' : 'check-email')}>{mode === 'reset' ? 'Request a new reset link' : 'Resend confirmation'}</button>}
-          <button type="button" className="text-button" onClick={onGuest}>{session ? 'Continue learning' : 'Continue learning without an account'}</button>
+          {(mode === 'reset' || mode === 'confirmed') && !callbackPending && !callbackComplete && callbackStatus !== 'ready' && <button type="button" className="text-button" onClick={() => onNavigate(mode === 'reset' ? 'forgot' : 'check-email')}>{mode === 'reset' ? 'Request a new reset link' : 'Resend confirmation'}</button>}
+          {mode !== 'confirmed' || !callbackComplete && callbackStatus !== 'already-authenticated' ? <button type="button" className="text-button" onClick={onGuest}>{session ? 'Continue learning' : 'Continue learning without an account'}</button> : null}
         </div>
       </div>
       <aside className="auth-world" aria-label={`${theme?.name ?? 'MOSAIC'} learning world`}><span className="auth-world-wordmark" aria-hidden="true">{THEMES[world].wordmark}</span><CompanionArt preferences={preferences} label={`${theme?.name ?? 'MOSAIC'} companion`} className="auth-world-mascot" state="welcoming" /><h2>{theme?.name ?? 'Your world. Your code.'}</h2><p>Learn real Python through a world you choose.</p></aside>

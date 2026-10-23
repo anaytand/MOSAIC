@@ -7,7 +7,7 @@ export function parseRoute(hash: string): AppRoute {
   if (hash === '#sensory') return { page: 'Settings', workspace: false, setup: false, sensory: true }
   if (hash === '#setup') return { page: 'Home', workspace: false, setup: true }
   if (hash === '#learn/workspace') return { page: 'Learn', workspace: true, setup: false }
-  const page: AppPage = hash === '#learn' ? 'Learn' : hash === '#progress' ? 'Progress' : hash === '#settings' ? 'Settings' : hash === '#keyboards' ? 'Keyboard Program' : 'Home'
+  const page: AppPage = hash === '#learn' ? 'Learn' : hash === '#progress' ? 'Progress' : hash === '#settings' ? 'Settings' : hash === '#keyboard' || hash === '#keyboards' ? 'Keyboard' : 'Home'
   return { page, workspace: false, setup: false }
 }
 export function initialRoute(hash: string, search: string): AppRoute {
@@ -15,4 +15,4 @@ export function initialRoute(hash: string, search: string): AppRoute {
   if (callback === 'confirm' || callback === 'reset') return { page: 'Home', workspace: false, setup: false, auth: callback === 'confirm' ? 'confirmed' : 'reset' }
   return parseRoute(hash)
 }
-export function routeHash(route: AppRoute): string { return route.auth ? `#auth/${route.auth}` : route.page === 'Keyboard Program' ? '#keyboards' : route.sensory ? '#sensory' : route.setup ? '#setup' : route.workspace ? '#learn/workspace' : `#${route.page.toLowerCase()}` }
+export function routeHash(route: AppRoute): string { return route.auth ? `#auth/${route.auth}` : route.page === 'Keyboard' ? '#keyboard' : route.sensory ? '#sensory' : route.setup ? '#setup' : route.workspace ? '#learn/workspace' : `#${route.page.toLowerCase()}` }

@@ -41,7 +41,7 @@ export interface UserPreferences {
   focusMode: boolean
   onboardingComplete: boolean
 }
-export type AppPage = 'Home' | 'Learn' | 'Progress' | 'Settings' | 'Keyboard Program'
+export type AppPage = 'Home' | 'Learn' | 'Progress' | 'Settings' | 'Keyboard'
 
 export interface AttemptRecord {
   id: string

@@ -55,6 +55,6 @@ See [PHASE5_MILESTONES_1_2.md](./PHASE5_MILESTONES_1_2.md) for the changed files
 
 ## Phase 6
 
-The optional companion now follows the selected interest and gives authored, active-lesson guidance. Original ambient music has explicit play/pause, volume, mute, execution pause, and stop-all controls. The Python path now contains twelve concepts, including real queued `input()` and a themed final reporting project. The Accessible Keyboard Program at `#keyboards` is informational with a disabled coming-soon registration preview; no contact information is collected.
+The optional companion now follows the selected interest and gives authored, active-lesson guidance. Original ambient music has explicit play/pause, volume, mute, execution pause, and stop-all controls. The Python path now contains twelve concepts, including real queued `input()` and a themed final reporting project. The MOSAIC Adaptive Keyboard concept page at `#keyboard` includes an interactive hardware preview. Signed-in learners can send one purchase-interest request after the separate Supabase migration is applied; guests cannot submit contact information.
 
 See [PHASE6.md](./PHASE6.md) for milestone results, every changed file, data compatibility, audio provenance, tests, local review steps, and remaining browser verification.

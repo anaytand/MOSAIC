@@ -1,7 +1,9 @@
-import { KeyboardProgram } from './components/KeyboardProgram'
+import { KeyboardProductPage } from './components/KeyboardProductPage'
 import { AuthPage } from './components/AuthPage'
 import { ProfileMenu } from './components/ProfileMenu'
 import { initialAuthCallback, supabase } from './lib/supabase'
+import { completeAuthCallbackOnce } from './lib/authCallback'
+import type { CallbackOutcome } from './lib/authCallback'
 import { useLearningPersistence } from './lib/useLearningPersistence'
 import type { Session } from '@supabase/supabase-js'
 import { AmbientControls } from './components/AmbientControls'
@@ -34,17 +36,24 @@ import './styles/sensory.css'
 import './styles/motion.css'
 import './styles/phase6.css'
 import './styles/auth.css'
+import './styles/keyboard-product.css'
 
 const pages: AppPage[] = ['Home', 'Learn', 'Progress', 'Settings']
+function settleAuthCallback(kind: 'confirm' | 'reset'): AppRoute {
+  const next = parseRoute(kind === 'confirm' ? '#auth/confirmed' : '#auth/reset')
+  const url = new URL(window.location.href)
+  for (const key of ['mosaic_auth', 'code', 'sb_flow_id', 'token_hash', 'type', 'error', 'error_code', 'error_description']) url.searchParams.delete(key)
+  url.hash = routeHash(next)
+  window.history.replaceState(null, '', url)
+  return next
+}
 function App() {
   const [authSession, setAuthSession] = useState<Session | null>(null)
   const [authReady, setAuthReady] = useState(!supabase)
   const { preferences: storedPreferences, setPreferences, lessonProgress, setLessonProgress, dataReady, activeUserId, status: syncStatus,
     message: syncMessage, canImport, conflict, retry, useCloud, useDevice, importGuest } = useLearningPersistence(supabase, authSession, authReady)
   const preferences = dataReady ? storedPreferences : defaultPreferences
-  const [callbackStatus, setCallbackStatus] = useState<'idle' | 'pending' | 'success' | 'error'>(() => {
-    return initialAuthCallback ? initialAuthCallback.hadCode ? 'pending' : 'error' : 'idle'
-  })
+  const [callbackStatus, setCallbackStatus] = useState<CallbackOutcome['status'] | 'idle' | 'ready' | 'pending'>(() => initialAuthCallback ? initialAuthCallback.tokenHash && !initialAuthCallback.errorCode && !initialAuthCallback.legacyCode ? 'ready' : 'pending' : 'idle')
   const [pendingEmail, setPendingEmail] = useState('')
   const [sensoryReturn, setSensoryReturn] = useState<AppRoute>({ page: 'Settings', workspace: false, setup: false })
   const [route, setRoute] = useState<AppRoute>(() => initialRoute(window.location.hash, window.location.search ?? ''))
@@ -52,41 +61,45 @@ function App() {
     const client = supabase
     if (!client) return
     let active = true
-    const callback = initialAuthCallback?.kind
-    const hadCode = initialAuthCallback?.hadCode
-    const settleCallback = (kind: 'confirm' | 'reset') => {
-      const next = parseRoute(kind === 'confirm' ? '#auth/confirmed' : '#auth/reset')
-      const url = new URL(window.location.href)
-      url.searchParams.delete('mosaic_auth')
-      url.searchParams.delete('code')
-      url.hash = routeHash(next)
-      window.history.replaceState(null, '', url)
-      setRoute(next)
-    }
-    const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
       if (!active) return
       setAuthSession(session)
       setAuthReady(true)
-      if (event === 'PASSWORD_RECOVERY') {
-        setCallbackStatus('success')
-        settleCallback('reset')
-      } else if (event === 'SIGNED_IN' && callback === 'confirm' && hadCode && new URLSearchParams(window.location.search).get('mosaic_auth') === 'confirm') {
-        setCallbackStatus('success')
-        settleCallback('confirm')
-      }
     })
-    if ((callback === 'confirm' || callback === 'reset') && hadCode) {
-      void client.auth.initialize().then(async ({ error }) => {
-        if (!active) return
-        if (error) { setCallbackStatus('error'); setAuthReady(true); settleCallback(callback); return }
-        const result = await client.auth.getSession()
-        if (!active) return
-        if (result.error || !result.data.session) { setCallbackStatus('error'); settleCallback(callback) }
-        else { setAuthSession(result.data.session); setAuthReady(true); setCallbackStatus('success'); settleCallback(callback) }
-      }).catch(() => { if (active) { setCallbackStatus('error'); setAuthReady(true); settleCallback(callback) } })
-    }
+    void client.auth.getSession().then(async ({ data }) => {
+      if (!active) return
+      setAuthSession(data.session)
+      setAuthReady(true)
+      if (!initialAuthCallback) return
+      // The token is verified only after the learner presses the callback button.
+      // Link scanners that merely load the page cannot consume it.
+      if (initialAuthCallback.tokenHash && !initialAuthCallback.errorCode && !initialAuthCallback.legacyCode) return
+      const result = await completeAuthCallbackOnce(client.auth, initialAuthCallback)
+      if (!active) return
+      if (result.session) setAuthSession(result.session)
+      setCallbackStatus(result.status)
+      if (new URLSearchParams(window.location.search).get('mosaic_auth') === initialAuthCallback.kind) setRoute(settleAuthCallback(initialAuthCallback.kind))
+    }).catch(() => {
+      if (!active) return
+      setAuthReady(true)
+      if (initialAuthCallback) { setCallbackStatus('network'); setRoute(settleAuthCallback(initialAuthCallback.kind)) }
+    })
     return () => { active = false; subscription.unsubscribe() }
   }, [])
+  const verifyEmailLink = () => {
+    const link = initialAuthCallback
+    if (!supabase || !link || !authReady || callbackStatus !== 'ready') return
+    setCallbackStatus('pending')
+    void completeAuthCallbackOnce(supabase.auth, link).then((result) => {
+      if (result.session) setAuthSession(result.session)
+      setAuthReady(true)
+      setCallbackStatus(result.status)
+      if (new URLSearchParams(window.location.search).get('mosaic_auth') === link.kind) setRoute(settleAuthCallback(link.kind))
+    }).catch(() => {
+      setCallbackStatus('network')
+      if (new URLSearchParams(window.location.search).get('mosaic_auth') === link.kind) setRoute(settleAuthCallback(link.kind))
+    })
+  }
   useEffect(() => {
     const root = document.documentElement
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -114,8 +127,8 @@ function App() {
   const navigate = (next: AppRoute) => {
     setRoute(next)
     const url = new URL(window.location.href)
-    const callback = url.searchParams.has('mosaic_auth') || url.searchParams.has('code')
-    if (callback) { url.searchParams.delete('mosaic_auth'); url.searchParams.delete('code'); url.hash = routeHash(next); window.history.pushState(null, '', url) }
+    const callback = url.searchParams.has('mosaic_auth') || url.searchParams.has('code') || url.searchParams.has('token_hash')
+    if (callback) { for (const key of ['mosaic_auth', 'code', 'sb_flow_id', 'token_hash', 'type', 'error', 'error_code', 'error_description']) url.searchParams.delete(key); url.hash = routeHash(next); window.history.pushState(null, '', url) }
     else if (window.location.hash !== routeHash(next)) window.history.pushState(null, '', routeHash(next))
     requestAnimationFrame(() => document.getElementById('main-content')?.focus())
   }
@@ -148,19 +161,19 @@ function App() {
   const guestImportNotice = canImport && <section className="guest-import-banner" aria-label="Guest progress available"><div><strong>Bring your guest progress into this account?</strong><p>Your cloud progress stays intact. Conflicting drafts are kept as separate copies.</p></div><button type="button" className="button button-secondary" onClick={importGuest}>Import guest progress</button></section>
   return <div className={`app-shell${showHomeHero ? ' reference-landing-shell' : ''}${inWorkspace && preferences.focusMode ? ' app-focus-mode' : ''}`} onClickCapture={(event) => { const target = event.target; if (target instanceof Element && target.closest('button') && !target.closest('[data-sound-control]')) void soundEngine.interaction() }}>
     <a className="skip-link" href="#main-content" onClick={(event) => { event.preventDefault(); document.getElementById('main-content')?.focus() }}>Skip to content</a>
-    <header className="topbar"><div className="topbar-inner"><Brand /><nav className="main-nav" aria-label="Main navigation">{pages.map((page) => <button className={`nav-link${route.page === page && !route.setup && !route.sensory && !route.auth ? ' active' : ''}`} key={page} type="button" aria-current={route.page === page && !route.setup && !route.sensory && !route.auth ? 'page' : undefined} onClick={() => openPage(page)}><NavigationIcon page={page} />{page}</button>)}</nav><button type="button" className="preferences-shortcut" onClick={() => openPage('Settings')} aria-label="Open accessibility and learning preferences"><span aria-hidden="true">Aa</span><span>Preferences</span></button><ProfileMenu key={routeHash(route)} session={authSession} authReady={authReady} onNavigate={openAuth} onSignOut={signOut} /></div>{showHomeHero && <div className="home-toolbar">{syncNotice}{guestImportNotice}<AmbientControls preferences={preferences} onChange={setPreferences} /></div>}</header>
+    <header className="topbar"><div className="topbar-inner"><Brand /><nav className="main-nav" aria-label="Main navigation">{pages.map((page) => <button className={`nav-link${route.page === page && !route.setup && !route.sensory && !route.auth ? ' active' : ''}`} key={page} type="button" aria-current={route.page === page && !route.setup && !route.sensory && !route.auth ? 'page' : undefined} onClick={() => openPage(page)}><NavigationIcon page={page} />{page}</button>)}<button className={`nav-link nav-keyboard${route.page === 'Keyboard' && !route.auth ? ' active' : ''}`} type="button" aria-label="Buy a Keyboard: view MOSAIC Adaptive Keyboard concept" aria-current={route.page === 'Keyboard' && !route.auth ? 'page' : undefined} onClick={() => openPage('Keyboard')}><span aria-hidden="true">⌨</span>Buy a Keyboard</button></nav><button type="button" className="preferences-shortcut" onClick={() => openPage('Settings')} aria-label="Open accessibility and learning preferences"><span aria-hidden="true">Aa</span><span>Preferences</span></button><ProfileMenu key={routeHash(route)} session={authSession} authReady={authReady} onNavigate={openAuth} onSignOut={signOut} /></div>{showHomeHero && <div className="home-toolbar">{syncNotice}{guestImportNotice}<AmbientControls preferences={preferences} onChange={setPreferences} /></div>}</header>
     {!showHomeHero && syncNotice}
     {dataReady && !showHomeHero && <AmbientControls preferences={preferences} onChange={setPreferences} />}
     <main id="main-content" tabIndex={-1} className={inWorkspace ? 'main-content workspace-main' : 'main-content'}>
-      {conflict ? <section className="sync-decision page" aria-labelledby="sync-decision-title"><h1 id="sync-decision-title">Choose which saved work to open</h1><p>This account has a cloud copy and unsynced work from this device. We have not replaced either copy.</p><div className="sync-decision-actions"><button type="button" className="button button-primary" onClick={useCloud}>Open cloud copy</button><button type="button" className="button button-secondary" onClick={useDevice}>Use this device’s copy and replace cloud fields</button></div><p>Choosing the device copy can replace newer cloud edits. The cloud copy will stay unchanged until its save succeeds.</p></section> : route.auth ? <AuthPage key={route.auth} mode={route.auth} preferences={preferences} session={authSession} authReady={authReady} callbackStatus={callbackStatus} pendingEmail={pendingEmail} onPendingEmail={setPendingEmail} onNavigate={openAuth} onGuest={() => openPage('Home')} canImport={canImport && dataReady} onImport={importGuest} syncStatus={syncStatus} /> : !dataReady ? <section className="sync-decision page" role="status"><h1>{syncStatus === 'failed' ? 'Cloud progress could not load' : 'Opening your learning space…'}</h1><p>{syncMessage || 'Checking your saved lessons and preferences.'}</p>{syncStatus === 'failed' && <button type="button" className="button button-primary" onClick={retry}>Try again</button>}</section> : route.sensory ? <SensoryMatcher preferences={preferences} onChange={setPreferences} onFinish={() => navigate(sensoryReturn)} onExit={() => navigate(sensoryReturn)} /> : route.setup ? <Onboarding preferences={preferences} progress={lessonProgress} onChange={setPreferences} onDifficulty={changeDifficulty} onFinish={finishSetup} onBack={() => openPage('Home')} /> : <>
+      {conflict ? <section className="sync-decision page" aria-labelledby="sync-decision-title"><h1 id="sync-decision-title">Choose which saved work to open</h1><p>This account has a cloud copy and unsynced work from this device. We have not replaced either copy.</p><div className="sync-decision-actions"><button type="button" className="button button-primary" onClick={useCloud}>Open cloud copy</button><button type="button" className="button button-secondary" onClick={useDevice}>Use this device’s copy and replace cloud fields</button></div><p>Choosing the device copy can replace newer cloud edits. The cloud copy will stay unchanged until its save succeeds.</p></section> : route.auth ? <AuthPage key={route.auth} mode={route.auth} preferences={preferences} session={authSession} authReady={authReady} callbackStatus={callbackStatus} onVerifyLink={verifyEmailLink} pendingEmail={pendingEmail} onPendingEmail={setPendingEmail} onNavigate={openAuth} onGuest={() => openPage('Home')} canImport={canImport && dataReady} onImport={importGuest} syncStatus={syncStatus} /> : !dataReady ? <section className="sync-decision page" role="status"><h1>{syncStatus === 'failed' ? 'Cloud progress could not load' : 'Opening your learning space…'}</h1><p>{syncMessage || 'Checking your saved lessons and preferences.'}</p>{syncStatus === 'failed' && <button type="button" className="button button-primary" onClick={retry}>Try again</button>}</section> : route.sensory ? <SensoryMatcher preferences={preferences} onChange={setPreferences} onFinish={() => navigate(sensoryReturn)} onExit={() => navigate(sensoryReturn)} /> : route.setup ? <Onboarding preferences={preferences} progress={lessonProgress} onChange={setPreferences} onDifficulty={changeDifficulty} onFinish={finishSetup} onBack={() => openPage('Home')} /> : <>
         {!showHomeHero && guestImportNotice}
         {route.page === 'Home' && <HomePage preferences={preferences} progress={lessonProgress} onSelectLesson={openLesson} onStart={() => preferences.onboardingComplete ? openLesson() : startSetup()} onPath={() => openPage('Learn')} onSetup={startSetup} onPreferencesChange={setPreferences} onSensory={openSensory} />}
         {route.page === 'Learn' && (route.workspace ? <Workspace key={activeUserId ?? 'guest'} preferences={preferences} progress={lessonProgress} onProgressChange={setLessonProgress} onPreferencesChange={setPreferences} onBackToPath={() => openPage('Learn')} onOpenSettings={openSensory} /> : <LearningPath preferences={preferences} progress={lessonProgress} onSelectLesson={(id: ConceptId) => openLesson(id)} />)}
         {route.page === 'Progress' && <ProgressPage preferences={preferences} progress={lessonProgress} onSelectLesson={openLesson} />}
-        {route.page === 'Keyboard Program' && <KeyboardProgram />}
+        {route.page === 'Keyboard' && <KeyboardProductPage key={authSession?.user.id ?? 'guest'} session={authSession} onSignIn={() => openAuth('login')} />}
         {route.page === 'Settings' && <SettingsPage preferences={preferences} progress={lessonProgress} onChange={setPreferences} onDifficulty={changeDifficulty} onSetup={startSetup} onSensory={openSensory} onLesson={() => openLesson()} />}
       </>}
-    </main>{dataReady && !route.setup && !route.sensory && !route.auth && !inWorkspace && (route.page === 'Home' || route.page === 'Learn') && <WorldPicker preferences={preferences} onChange={setPreferences} />}<footer className="site-footer"><Brand compact /><a href="#keyboards">Accessible Keyboard Program</a><span>A little progress, at your pace.</span><span>Python fundamentals · Made for your way of learning</span></footer>
+    </main>{dataReady && !route.setup && !route.sensory && !route.auth && !inWorkspace && (route.page === 'Home' || route.page === 'Learn') && <WorldPicker preferences={preferences} onChange={setPreferences} />}<footer className="site-footer"><Brand compact /><a href="#keyboard">MOSAIC Adaptive Keyboard</a><span>A little progress, at your pace.</span><span>Python fundamentals · Made for your way of learning</span></footer>
   </div>
 }
 export default App

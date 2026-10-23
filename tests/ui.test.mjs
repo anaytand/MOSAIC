@@ -39,7 +39,7 @@ test('existing preferences migrate with compatible defaults for new view setting
 })
 
 test('hash navigation restores the workspace and dedicated pages on refresh', () => {
-  for (const hash of ['#home', '#learn', '#learn/workspace', '#progress', '#settings', '#setup', '#sensory']) assert.equal(routeHash(parseRoute(hash)), hash)
+  for (const hash of ['#home', '#learn', '#learn/workspace', '#progress', '#settings', '#keyboard', '#setup', '#sensory']) assert.equal(routeHash(parseRoute(hash)), hash)
   assert.equal(parseRoute('#unknown').page, 'Home')
   assert.equal(parseRoute('#learn/workspace').workspace, true)
 })
@@ -129,6 +129,9 @@ test('application renders consistent navigation and saved settings routes', () =
   assert.match(html, />Progress<\/button>/)
   assert.match(html, /Opening your learning space/)
   assert.match(html, /Open accessibility and learning preferences/)
+  assert.match(html, /Buy a Keyboard/)
+  assert.match(html, /href="#keyboard">MOSAIC Adaptive Keyboard/)
+  assert.doesNotMatch(html, /Accessible Keyboard Program/)
   window.location.hash = '#home'
 })
 
