@@ -15,11 +15,13 @@ import { parseProjectSnapshot } from '../themes/projects'
 import { lessonDraft, previousDrafts } from '../themes/drafts'
 import { ProjectPreview } from './ProjectPreview'
 import { guidanceLabels, interestLabel } from '../presentation'
+import type { ExecutionTrace } from '../executionTrace'
+import { WorldSimulation } from './WorldSimulation'
 
 type RuntimeState = 'loading' | 'ready' | 'running' | 'failed' | 'stopped' | 'timed-out'
 type WorkspaceTab = 'instructions' | 'editor' | 'output'
 interface WorkerReply { type: 'ready' | 'initialization-error' | 'result' | 'failure'; id?: number; result?: string; message?: string }
-interface RunResult { output: string; error: string; passed: boolean; feedback: string; project?: unknown }
+interface RunResult { output: string; error: string; passed: boolean; feedback: string; project?: unknown; trace?: ExecutionTrace }
 interface WorkspaceProps {
   preferences: UserPreferences
   progress: LessonProgress
@@ -55,6 +57,8 @@ export function Workspace({ preferences, progress, onProgressChange, onPreferenc
   useEffect(() => () => ambientEngine.setExecuting(false), [])
   const [editorError, setEditorError] = useState<string | null>(null)
   const [output, setOutput] = useState<RunResult>(defaultResult)
+  const [highlightedLine, setHighlightedLine] = useState<number | null>(null)
+  const [traceRunKey, setTraceRunKey] = useState(0)
   const [hasRun, setHasRun] = useState(false)
   const [runWasAlreadyComplete, setRunWasAlreadyComplete] = useState(false)
   const [hintLevel, setHintLevel] = useState(0)
@@ -93,6 +97,7 @@ export function Workspace({ preferences, progress, onProgressChange, onPreferenc
     setInputDraft(progressRef.current.inputDrafts[currentLesson.exerciseId] ?? currentLesson.defaultInputs?.join('\n') ?? '')
     setEditorReset((value) => value + 1)
     setOutput(defaultResult)
+    setHighlightedLine(null)
     setHasRun(false)
     setRestoreKey('')
     setHintsExpanded(false)
@@ -142,6 +147,7 @@ export function Workspace({ preferences, progress, onProgressChange, onPreferenc
       try {
         const result = JSON.parse(message.result ?? '{}') as RunResult
         setOutput(result)
+        setTraceRunKey(message.id ?? 0)
         setHasRun(true)
         setRuntimeState('ready')
         const run = activeExerciseForRunRef.current
@@ -202,6 +208,7 @@ export function Workspace({ preferences, progress, onProgressChange, onPreferenc
     setActiveLessonId(lesson.id)
     setActiveDifficulty(next.difficultyOverride ?? suggestedDifficulty(next, lesson.id))
     setOutput(defaultResult)
+    setHighlightedLine(null)
     setHasRun(false)
     setHintLevel(0)
     setMobileTab('instructions')
@@ -220,6 +227,7 @@ export function Workspace({ preferences, progress, onProgressChange, onPreferenc
     updateDraft(currentLesson.starterCode)
     setEditorReset((value) => value + 1)
     setOutput(defaultResult)
+    setHighlightedLine(null)
     setHasRun(false)
     setSaveNotice('Starter code restored.')
   }
@@ -235,6 +243,7 @@ export function Workspace({ preferences, progress, onProgressChange, onPreferenc
     setRuntimeState('running')
     setConsoleCollapsed(false)
     setOutput(defaultResult)
+    setHighlightedLine(null)
     setHasRun(false)
     workerRef.current.postMessage({ type: 'run', id, code: draft, checkSource: currentLesson.checkSource, inputLines: inputDraft ? inputDraft.split('\n') : [] })
     timeoutRef.current = window.setTimeout(() => {
@@ -321,18 +330,27 @@ export function Workspace({ preferences, progress, onProgressChange, onPreferenc
     <div className="workspace-layout" aria-busy={runtimeState === 'running'}>
       <aside className="workspace-sidebar" id="workspace-panel-instructions" role="tabpanel" aria-labelledby="workspace-tab-instructions" data-mobile-active={mobileTab === 'instructions'}>
         <div className="lesson-intro-mark"><CompanionArt preferences={preferences} key={currentLesson.exerciseId} state="welcoming" /><span className="panel-title">YOUR LESSON</span></div><label className="difficulty-control">Guidance<select value={progress.difficultyOverride ?? 'recommended'} disabled={runtimeState === 'running'} onChange={(event) => changeDifficulty(event.target.value)}><option value="recommended">Adaptive · {guidanceLabels[suggestedDifficulty(progress, conceptId)]}</option><option value="guided">Step by Step</option><option value="independent">Balanced</option><option value="challenge">Explore</option></select></label><span className="status-tag">Current: {guidanceLabels[difficulty]}</span>
-        <article className="instruction-card"><CompanionPanel key={currentLesson.exerciseId} lesson={currentLesson} progress={progress} preferences={preferences} running={runtimeState === 'running'} result={hasRun || output.error ? output : undefined} errorExplanation={output.error ? humanError(output.error) : undefined} onPreferencesChange={onPreferencesChange} onHint={openHints} onStart={reviewTask} onContinue={continueToRecommendation} />{currentLesson.narrative && <p className="lesson-narrative">{currentLesson.narrative}</p>}{!theme && currentLesson.themeId && <p className="support-note">These extended missions use the Ocean research project. Your custom topic and earlier drafts are preserved.</p>}<span className="eyebrow">THE GOAL</span><h2>{currentLesson.objective}</h2><div className="challenge-card"><h3 id="current-task" tabIndex={-1}>Your task</h3><p>{currentLesson.challenge}</p><pre aria-label={currentLesson.id === 'user-input' ? 'Example output for suggested inputs' : 'Expected program output'}>{currentLesson.expectedBehavior}</pre><small>{currentLesson.validationMode === 'required-line' ? 'Include each complete line. Extra output lines are welcome.' : currentLesson.validationMode === 'exact-output' ? 'Match the requested output, including its order.' : 'Your code is checked against the task’s behavior.'}</small></div><button type="button" className="text-button task-hint" onClick={openHints}>Get a Hint</button><details className="lesson-details" open={preferences.visualDensity === 'detailed' ? true : undefined}><summary>Show example</summary><pre>{currentLesson.sample}</pre></details><details className="lesson-details" open={preferences.visualDensity === 'detailed' ? true : undefined}><summary>More explanation</summary><p>{currentLesson.concept}</p><ol>{currentLesson.instructions.map((instruction) => <li key={instruction}>{instruction}</li>)}</ol></details><button className="button button-secondary mobile-code-action" type="button" onClick={() => { setMobileTab('editor'); document.getElementById('workspace-tab-editor')?.focus() }}>Open code editor →</button></article>
+        <article className="instruction-card">
+          <span className="eyebrow">THE GOAL</span>
+          <h2>{currentLesson.objective}</h2>
+          {currentLesson.narrative && <p className="lesson-narrative">{currentLesson.narrative}</p>}
+          <div className="challenge-card"><h3 id="current-task" tabIndex={-1}>Your task</h3><p>{currentLesson.challenge}</p><pre aria-label={currentLesson.id === 'user-input' ? 'Example output for suggested inputs' : 'Expected program output'}>{currentLesson.expectedBehavior}</pre><small>{currentLesson.validationMode === 'required-line' ? 'Include each complete line. Extra output lines are welcome.' : currentLesson.validationMode === 'exact-output' ? 'Match the requested output, including its order.' : 'Your code is checked against the task’s behavior.'}</small></div>
+          {!theme && currentLesson.themeId && <p className="support-note">These extended missions use the Ocean research project. Your custom topic and earlier drafts are preserved.</p>}
+          <CompanionPanel key={currentLesson.exerciseId} lesson={currentLesson} progress={progress} preferences={preferences} running={runtimeState === 'running'} result={hasRun || output.error ? output : undefined} errorExplanation={output.error ? humanError(output.error) : undefined} onPreferencesChange={onPreferencesChange} onHint={openHints} onStart={reviewTask} onContinue={continueToRecommendation} />
+          <button className="button button-secondary mobile-code-action" type="button" onClick={() => { setMobileTab('editor'); document.getElementById('workspace-tab-editor')?.focus() }}>Open code editor →</button>
+        </article>
       </aside>
       <section className="editor-panel" id="workspace-panel-editor" role="tabpanel" aria-labelledby="workspace-tab-editor" data-mobile-active={mobileTab === 'editor'}>
         <div className="editor-toolbar"><div className="file-tab"><span aria-hidden="true">▤</span> main.py <small>PYTHON</small></div><button className="button button-run button-primary" type="button" aria-keyshortcuts="Control+Enter Meta+Enter" title="Run Python (Ctrl+Enter or Command+Enter)" onClick={runCode} disabled={runtimeState !== 'ready'}>{runtimeState === 'running' ? 'Running…' : '▶ Run Code'}</button></div>
         <div className="editor-helpbar"><span className={`runtime-pill runtime-${runtimeState}`}>{runtimeState === 'loading' ? 'Starting Python…' : runtimeState === 'ready' ? '● Python ready' : runtimeState === 'running' ? 'Python is running…' : runtimeState === 'timed-out' ? 'Time limit reached' : runtimeState === 'stopped' ? 'Run stopped' : 'Python needs attention'}</span><details className="editor-options"><summary>Editor options</summary><div><div className="font-controls" role="group" aria-label="Editor text size"><button type="button" onClick={() => changeEditorFont(-1)} aria-label="Decrease editor text size" disabled={currentFontSize <= 12}>A−</button><span>{currentFontSize}px</span><button type="button" onClick={() => changeEditorFont(1)} aria-label="Increase editor text size" disabled={currentFontSize >= 28}>A+</button></div><button className="text-button" type="button" onClick={() => setResetPending(true)} disabled={runtimeState === 'running'}>Reset code…</button>{runtimeState === 'failed' && <button className="button button-secondary" type="button" onClick={() => restartWorker('loading')}>Restart Python</button>}</div></details></div>
         <p className="editor-keyboard-note" id="editor-keyboard-help">Run: Ctrl / ⌘ + Enter. Tab indents; use Ctrl+M (Mac: Ctrl+Shift+M) to let Tab move focus.</p>
-        <div className="code-editor"><MonacoEditor key={`${activeLessonId}-${editorReset}`} initialValue={draft} theme={preferences.colorTheme} highContrast={preferences.highContrast} fontSize={currentFontSize} onChange={updateDraft} onError={setEditorError} retryKey={editorRetry} />{editorError && <div className="editor-load-error" role="alert"><p>{editorError}</p><button type="button" className="button button-primary" onClick={() => setEditorRetry((value) => value + 1)}>Retry editor loading</button></div>}</div>
+        <div className="code-editor"><MonacoEditor key={`${activeLessonId}-${editorReset}`} initialValue={draft} theme={preferences.colorTheme} highContrast={preferences.highContrast} fontSize={currentFontSize} highlightLine={highlightedLine} onChange={updateDraft} onError={setEditorError} retryKey={editorRetry} />{editorError && <div className="editor-load-error" role="alert"><p>{editorError}</p><button type="button" className="button button-primary" onClick={() => setEditorRetry((value) => value + 1)}>Retry editor loading</button></div>}</div>
         {archivedDrafts.length > 0 && <details className="archived-drafts"><summary>Other saved drafts for this concept ({archivedDrafts.length})</summary><p>Your earlier code is kept separately. Load a copy only if you want to use it in this new task.</p><label className="field-label">Saved draft<select value={restoreKey} onChange={(event) => setRestoreKey(event.target.value)}><option value="">Choose a saved draft</option>{archivedDrafts.map(([key]) => <option key={key} value={key}>{key}</option>)}</select></label><button className="button button-secondary" type="button" disabled={!restoreKey || runtimeState === 'running'} onClick={() => setPendingRestore(restoreKey)}>Load a copy…</button></details>}
         <details className="program-input" open={currentLesson.id === 'user-input' ? true : undefined}><summary>Program input · queued lines</summary><label className="field-label">One line per input() call<textarea maxLength={8000} rows={3} value={inputDraft} onChange={(event) => { const value = event.target.value; setInputDraft(value); const next = { ...progressRef.current, inputDrafts: { ...progressRef.current.inputDrafts, [currentLesson.exerciseId]: value } }; progressRef.current = next; onProgressChange(next) }} /></label><small>Real input() reads these lines in order. No blocking prompt. Maximum 50 lines of 1,000 characters.</small>{currentLesson.defaultInputs && <button className="text-button" type="button" onClick={() => { const value = currentLesson.defaultInputs!.join('\n'); setInputDraft(value); const next = { ...progressRef.current, inputDrafts: { ...progressRef.current.inputDrafts, [currentLesson.exerciseId]: value } }; progressRef.current = next; onProgressChange(next) }}>Restore suggested inputs</button>}</details><div className="editor-status"><span role="status" aria-live="polite">{saveNotice || 'Draft changes save automatically. See the sync status above.'}</span><button className="text-button" type="button" onClick={saveProgress}>Save Progress</button></div>{runtimeState === 'running' && <div className="running-notice" role="status">Python runs in a separate worker.<button type="button" className="text-button" onClick={stopCode}>Stop and restart Python</button></div>}
       </section>
       <aside className="workspace-help" id="workspace-panel-output" role="tabpanel" aria-labelledby="workspace-tab-output" data-mobile-active={mobileTab === 'output'}>
         <section className="console-section"><div className="console-heading"><h2>Console</h2><span className="status-tag">{runtimeState === 'running' ? 'Running' : hasRun && !output.error ? 'Run finished' : 'Output'}</span></div><div aria-live="polite" aria-atomic="true">{!hasRun && !output.error && <p className="console-empty">{runtimeState === 'running' ? 'Running your Python code…' : 'Run your code to see what happens here.'}</p>}{output.output && <pre className="console-output" aria-label="Actual Python program output">{output.output}</pre>}{output.error && <div className="python-error" role="alert"><h3>Python stopped with an error</h3><p>{humanError(output.error)}</p><details><summary>Show Python error details</summary><pre>{output.error}</pre></details><button className="text-button" type="button" onClick={reviewTask}>Review Task</button></div>}{hasRun && !output.error && <ExecutionFeedback preferences={preferences} theme={theme} lesson={currentLesson} passed={output.passed} feedback={output.feedback} alreadyCompleted={runWasAlreadyComplete} progress={progress} onContinue={continueToRecommendation} onReviewTask={reviewTask} onHint={requestHint} />}</div></section>
+        {output.trace && <WorldSimulation key={traceRunKey} trace={output.trace} conceptId={currentLesson.id} theme={theme} preferences={preferences} onHighlightLine={setHighlightedLine} />}
         {theme && <details className="project-details" open={output.passed && currentLesson.id === 'variables'}><summary>View your Python project</summary><ProjectPreview theme={theme} snapshot={progress.projectSnapshots[theme.id]} /></details>}<section className="help-section"><div className="hint-guide"><CompanionArt preferences={preferences} key={`${currentLesson.exerciseId}-hint-${hintLevel}`} state={hintsExpanded ? 'explaining' : 'idle'} /><h2>A little help, when you want it.</h2></div><p>Three authored hints, from a nudge to a worked example.</p><button className="button button-secondary" type="button" onClick={() => { if (hintLevel === 0) requestHint(); else setHintsExpanded(!hintsExpanded) }} aria-expanded={hintsExpanded}>{hintLevel === 0 ? 'Get a Hint' : hintsExpanded ? 'Hide hints' : 'Show saved hints'}</button>{hintsExpanded && <div className="hint-card">{currentLesson.hints.slice(0, hintLevel).map((hint, index) => <article key={index}><strong>Hint {index + 1} · {index === 0 ? 'The idea' : index === 1 ? 'A direction' : 'An example'}</strong><p>{hint}</p></article>)}{hintLevel < 3 && <button className="text-button" type="button" onClick={requestHint}>Show hint {hintLevel + 1} →</button>}</div>}</section><button className="text-button output-return" type="button" onClick={() => { setMobileTab('editor'); document.getElementById('workspace-tab-editor')?.focus() }}>← Back to code</button>
       </aside>
     </div><ConfirmDialog open={resetPending || pendingRestore !== null} title={pendingRestore ? 'Load a copy of this saved draft?' : undefined} description={pendingRestore ? 'This replaces the current exercise draft. The original saved draft stays available. The copied code may need changes for this task.' : undefined} confirmLabel={pendingRestore ? 'Load a copy' : undefined} onCancel={() => { setResetPending(false); setPendingRestore(null) }} onConfirm={() => { if (pendingRestore) { updateDraft(progressRef.current.drafts[pendingRestore]); setEditorReset((value) => value + 1); setSaveNotice('A copy is saved in this exercise. The original draft is preserved.') } else resetCode(); setResetPending(false); setPendingRestore(null) }} />

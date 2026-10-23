@@ -7,6 +7,7 @@ interface EditorInstance {
   getValue: () => string
   onDidChangeModelContent: (listener: () => void) => { dispose: () => void }
   updateOptions: (options: { fontSize?: number; lineHeight?: number }) => void
+  deltaDecorations: (oldDecorations: string[], newDecorations: Array<{ range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }; options: { isWholeLine: boolean; className: string; linesDecorationsClassName: string } }>) => string[]
   dispose: () => void
 }
 
@@ -92,11 +93,13 @@ interface MonacoEditorProps {
   onChange: (value: string) => void
   onError: (message: string | null) => void
   retryKey: number
+  highlightLine?: number | null
 }
 
-export function MonacoEditor({ initialValue, theme, highContrast, fontSize, onChange, onError, retryKey }: MonacoEditorProps) {
+export function MonacoEditor({ initialValue, theme, highContrast, fontSize, onChange, onError, retryKey, highlightLine }: MonacoEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<EditorInstance | null>(null)
+  const decorationIdsRef = useRef<string[]>([])
   const changeRef = useRef(onChange)
   const errorRef = useRef(onError)
   const initialValueRef = useRef(initialValue)
@@ -126,6 +129,7 @@ export function MonacoEditor({ initialValue, theme, highContrast, fontSize, onCh
         minimap: { enabled: false },
         folding: false,
         scrollBeyondLastLine: false,
+        scrollbar: { alwaysConsumeMouseWheel: false },
         tabSize: 4,
         insertSpaces: true,
         autoIndent: 'full',
@@ -149,6 +153,7 @@ export function MonacoEditor({ initialValue, theme, highContrast, fontSize, onCh
       subscription?.dispose()
       editorRef.current?.dispose()
       editorRef.current = null
+      decorationIdsRef.current = []
     }
   }, [retryKey])
 
@@ -156,6 +161,15 @@ export function MonacoEditor({ initialValue, theme, highContrast, fontSize, onCh
     editorRef.current?.updateOptions({ fontSize, lineHeight: Math.round(fontSize * 1.7) })
     if (window.monaco) window.monaco.editor.setTheme(theme === 'dark' ? highContrast ? 'mosaic-dark-high' : 'mosaic-dark' : highContrast ? 'mosaic-light-high' : 'mosaic-light')
   }, [fontSize, highContrast, theme])
+
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editor) return
+    decorationIdsRef.current = editor.deltaDecorations(decorationIdsRef.current, highlightLine && highlightLine > 0 ? [{
+      range: { startLineNumber: highlightLine, startColumn: 1, endLineNumber: highlightLine, endColumn: 1 },
+      options: { isWholeLine: true, className: 'mosaic-trace-line', linesDecorationsClassName: 'mosaic-trace-gutter' },
+    }] : [])
+  }, [highlightLine, loaded])
 
   return <div className={`monaco-holder${loaded ? ' is-loaded' : ''}`}><div className="monaco-container" ref={containerRef} /><span className="monaco-loading" aria-live="polite">Loading Monaco Python editor…</span></div>
 }

@@ -43,7 +43,6 @@ html[data-visual-density='minimal'] .theme-milestones { display: none; }
 html[data-visual-density='minimal'] .recommendation-card { background: var(--surface-soft); }
 html[data-visual-density='minimal'] .page-heading { margin-bottom: 24px; }
 html[data-visual-density='minimal'] .lp-feature { gap: 16px; }
-html[data-visual-density='detailed'] .lesson-details { margin-top: 12px; }
 .progress-track > span { background: var(--decor-progress, var(--teal)); }
 html[data-theme='dark'] .sensory-preview-scene { --sky1: var(--decor-dark-sky1); --sky2: var(--decor-dark-sky2); }
 @media (max-width: 560px) {
