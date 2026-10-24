@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { authActions, authRedirectUrl, readAuthCallback } from '../src/lib/auth.ts'
+import { normalizeProfileName, profileDisplayName, saveProfileName } from '../src/lib/profileName.ts'
 import { completeAuthCallbackOnce } from '../src/lib/authCallback.ts'
 import { supabaseAuthOptions } from '../src/lib/supabase.ts'
 import { initialRoute, parseRoute, routeHash } from '../src/navigation.ts'
@@ -159,4 +160,34 @@ test('profile menu offers guest sign-in and signed-in sign-out while local learn
   assert.match(signed, /Sign out/)
   assert.match(view('account', { session: { user: { email: 'learner@example.test' } } }), /Guest work stays on this device unless you choose to import it/)
   assert.match(view('account', { session: { user: { email: 'learner@example.test' } }, canImport: true, onImport: noop, syncStatus: 'saved' }), /Import guest progress/)
+})
+
+test('a signed-in learner is prompted for a name and the home profile greets the saved name', () => {
+  const unnamed = { user: { id: 'account-a', email: 'learner@example.test', user_metadata: {} } }
+  assert.match(view('account', { session: unnamed }), /What should we call you\?/)
+  assert.match(view('account', { session: unnamed }), /Name or nickname/)
+  assert.match(view('confirmed', { session: unnamed, callbackStatus: 'success' }), /What should we call you\?/)
+  const named = { user: { ...unnamed.user, user_metadata: { display_name: 'Alex' } } }
+  const home = renderToStaticMarkup(createElement(ProfileMenu, { session: named, authReady: true, showGreeting: true, onNavigate: noop, onSignOut: async () => {} }))
+  assert.match(home, /Hello, <strong>Alex<\/strong>/)
+  assert.match(home, /Profile menu for Alex/)
+  const elsewhere = renderToStaticMarkup(createElement(ProfileMenu, { session: named, authReady: true, showGreeting: false, onNavigate: noop, onSignOut: async () => {} }))
+  assert.doesNotMatch(elsewhere, /Hello, /)
+  assert.doesNotMatch(renderToStaticMarkup(createElement(ProfileMenu, { session: null, authReady: true, showGreeting: true, onNavigate: noop, onSignOut: async () => {} })), /Hello, /)
+})
+
+test('names save to the active Supabase Auth account only after confirmation', async () => {
+  assert.equal(normalizeProfileName('  Alex   Rivera  '), 'Alex Rivera')
+  assert.equal(profileDisplayName({ user_metadata: { display_name: ' Alex Rivera ' } }), 'Alex Rivera')
+  assert.throws(() => normalizeProfileName('   '), /Enter a name/)
+  assert.throws(() => normalizeProfileName('A'.repeat(41)), /40 characters/)
+  const session = { user: { id: 'account-a' } }
+  const calls = []
+  const auth = { getUser: async () => ({ data: { user: { id: 'account-a' } }, error: null }), updateUser: async (value) => { calls.push(value); return { data: { user: { id: 'account-a', user_metadata: value.data } }, error: null } } }
+  const user = await saveProfileName(auth, session, '  Alex   Rivera  ')
+  assert.deepEqual(calls, [{ data: { display_name: 'Alex Rivera' } }])
+  assert.equal(profileDisplayName(user), 'Alex Rivera')
+  await assert.rejects(saveProfileName({ ...auth, getUser: async () => ({ data: { user: { id: 'account-b' } }, error: null }) }, session, 'Alex'), /account changed/i)
+  assert.equal(calls.length, 1)
+  await assert.rejects(saveProfileName({ ...auth, updateUser: async () => ({ data: { user: null }, error: { message: 'Network failed' } }) }, session, 'Alex'), /Network failed/)
 })

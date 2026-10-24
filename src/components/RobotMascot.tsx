@@ -2,9 +2,9 @@ import type { ReactNode } from 'react'
 import { useEffect, useId, useRef } from 'react'
 import { observeMotionRegion } from '../motionActivity'
 export type RobotReaction = 'none' | 'welcome' | 'lesson' | 'success' | 'hint'
-interface Props { label?: string; className?: string; floating?: boolean; reaction?: RobotReaction; children?: ReactNode; companion?: string; companionState?: string }
+interface Props { label?: string; className?: string; floating?: boolean; reaction?: RobotReaction; backdrop?: ReactNode; children?: ReactNode; companion?: string; companionState?: string }
 /** Original reference SVG, with isolated, optional transform groups. Static is the same artwork. */
-export function RobotMascot({ label, className = '', floating = false, reaction = 'none', children, companion, companionState }: Props) {
+export function RobotMascot({ label, className = '', floating = false, reaction = 'none', backdrop, children, companion, companionState }: Props) {
   const id = `robot-${useId().replace(/:/g, '')}`
   const ref = useRef<SVGSVGElement>(null)
   useEffect(() => ref.current ? observeMotionRegion(ref.current) : undefined, [])
@@ -29,6 +29,7 @@ export function RobotMascot({ label, className = '', floating = false, reaction 
           <stop offset="0" stopColor="#FFE3C2" /><stop offset="1" stopColor="#D9853A" />
         </radialGradient>
     </defs>
+    {backdrop}
 <g className="robot-antenna">
           <line x1="230" y1="30" x2="230" y2="62" stroke="#9AA7AE" strokeWidth="6" strokeLinecap="round" />
           <circle cx="230" cy="24" r="14" fill={`url(#${id}-amber)`} />

@@ -23,6 +23,41 @@ test('each interest selects a consistent SVG companion and supports all six stat
     }
   }
 })
+test('basketball, space, and ocean keep the robot face while gaining distinct themed outfits', () => {
+  const markup = Object.fromEntries(['basketball', 'space', 'ocean'].map(interest => [interest, renderToStaticMarkup(createElement(CompanionArt, {
+    preferences: { ...defaultPreferences, interest }, label: 'Learning companion' },
+  ))]))
+  for (const html of Object.values(markup)) {
+    assert.match(html, /viewBox="0 0 460 340"/)
+    assert.match(html, /rect x="136" y="84" width="188" height="104"/)
+    assert.match(html, /class="robot-eyes"/)
+    assert.match(html, /role="img"/)
+  }
+  assert.match(markup.basketball, /FALCONS/)
+  assert.match(markup.basketball, />24<\/text>/)
+  assert.match(markup.space, /rect x="91" y="232" width="45" height="84"/)
+  assert.match(markup.ocean, /rect x="128" y="78" width="204" height="124"/)
+  assert.notEqual(markup.basketball, markup.space)
+  assert.notEqual(markup.space, markup.ocean)
+})
+test('animal and train companions use the shared robot silhouette with identifiable field and rail gear', () => {
+  const animal = renderToStaticMarkup(createElement(CompanionArt, { preferences: { ...defaultPreferences, interest: 'animals' }, label: 'Learning companion' }))
+  const train = renderToStaticMarkup(createElement(CompanionArt, { preferences: { ...defaultPreferences, interest: 'trains' }, label: 'Learning companion' }))
+  for (const html of [animal, train]) {
+    assert.match(html, /rect x="136" y="84" width="188" height="104"/)
+    assert.match(html, /class="robot-eyes"/)
+    assert.match(html, /class="robot-wave-arm"/)
+    assert.match(html, /viewBox="0 0 460 340"/)
+    assert.match(html, /role="img"/)
+  }
+  assert.match(animal, /data-companion="fox"/)
+  assert.match(animal, /rect x="200" y="267" width="27" height="24"/)
+  assert.match(animal, /paw|binoculars/i)
+  assert.match(train, /data-companion="train"/)
+  assert.match(train, /rect x="201" y="267" width="58" height="51"/)
+  assert.match(train, /conductor|whistle/i)
+  assert.notEqual(animal, train)
+})
 test('companion guidance uses active objectives, actual validation feedback, and real recommendation', () => {
   const preferences = { ...defaultPreferences, interest: 'basketball' }
   const lesson = getLearningLesson('variables', 'guided', preferences)

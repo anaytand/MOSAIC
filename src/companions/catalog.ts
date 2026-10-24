@@ -4,11 +4,11 @@ export type CompanionId = 'robot' | 'shark' | 'basketball' | 'astronaut' | 'trai
 export type CompanionState = 'idle' | 'welcoming' | 'explaining' | 'thinking' | 'encouraging' | 'celebrating'
 export const companions = {
   robot: { name: 'Bit', introduction: 'Let’s build something with Python.', description: 'The original MOSAIC robot guide' },
-  shark: { name: 'Reef', introduction: 'Let’s explore with the research crew.', description: 'A friendly shark research companion' },
-  basketball: { name: 'Coach Bit', introduction: 'Let’s build the Mosaic Falcons project.', description: 'The basketball academy robot' },
-  astronaut: { name: 'Orbit', introduction: 'Mission control is ready when you are.', description: 'An astronaut robot guide' },
-  train: { name: 'Pip', introduction: 'Let’s work on our railway project.', description: 'A friendly train companion' },
-  fox: { name: 'Scout', introduction: 'Let’s turn wildlife observations into code.', description: 'A friendly fox research companion' },
+  shark: { name: 'Reef', introduction: 'Let’s explore with the research crew.', description: 'A shark-inspired underwater explorer robot' },
+  basketball: { name: 'Coach Bit', introduction: 'Let’s build the Mosaic Falcons project.', description: 'The Falcons basketball robot in its team uniform' },
+  astronaut: { name: 'Orbit', introduction: 'Mission control is ready when you are.', description: 'A spacesuit-wearing explorer robot' },
+  train: { name: 'Pip', introduction: 'Let’s work on our railway project.', description: 'A conductor robot with a route display and signal whistle' },
+  fox: { name: 'Scout', introduction: 'Let’s turn wildlife observations into code.', description: 'A fox-inspired wildlife explorer robot with binoculars' },
   music: { name: 'Tempo', introduction: 'Let’s build our music studio with Python.', description: 'A music studio robot guide' },
 } satisfies Record<CompanionId, { name: string; introduction: string; description: string }>
 export function companionId(preferences: Pick<UserPreferences, 'interest' | 'customTopic'> & { avatarId?: UserPreferences['avatarId'] }): CompanionId {

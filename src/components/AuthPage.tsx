@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import type { Session, SupabaseClient } from '@supabase/supabase-js'
+import type { Session, SupabaseClient, User } from '@supabase/supabase-js'
 import { authActions } from '../lib/auth'
+import { profileDisplayName, saveProfileName } from '../lib/profileName'
 import type { CallbackOutcome } from '../lib/authCallback'
 import { supabase } from '../lib/supabase'
 import { selectedWorld, THEMES } from '../design/worlds'
@@ -22,6 +23,7 @@ interface Props {
   onPendingEmail: (email: string) => void
   onNavigate: (mode: AuthMode) => void
   onGuest: () => void
+  onUserUpdated?: (user: User) => void
   canImport?: boolean
   onImport?: () => void
   syncStatus?: string
@@ -42,7 +44,38 @@ const callbackProblem: Record<Exclude<CallbackOutcome['status'], 'success' | 'al
   unverified: 'A session was returned, but Supabase has not confirmed this email. Please request a new link.',
 }
 
-export function AuthPage({ mode, preferences, session, authReady, callbackStatus, onVerifyLink, pendingEmail, onPendingEmail, onNavigate, onGuest, canImport = false, onImport, syncStatus, client = supabase }: Props) {
+function AccountNameForm({ session, client, onUserUpdated }: { session: Session; client: Pick<SupabaseClient, 'auth'>; onUserUpdated?: (user: User) => void }) {
+  const savedName = profileDisplayName(session.user)
+  const [name, setName] = useState(savedName)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const submitName = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (busy) return
+    setBusy(true); setError(''); setMessage('')
+    try {
+      const user = await saveProfileName(client.auth, session, name)
+      setName(profileDisplayName(user))
+      onUserUpdated?.(user)
+      setMessage('Your name was saved to your account.')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save your name. Please try again.')
+    } finally { setBusy(false) }
+  }
+  return <section className="auth-name-prompt" aria-labelledby="auth-name-heading">
+    <h2 id="auth-name-heading">{savedName ? `Hi, ${savedName}!` : 'What should we call you?'}</h2>
+    <p>Use your first name or a nickname. We’ll show it by Profile on your home page. You can change it later.</p>
+    <form className="auth-form" onSubmit={(event) => { void submitName(event) }}>
+      <label className="auth-field">Name or nickname<input type="text" name="display-name" autoComplete="nickname" required maxLength={40} value={name} onChange={(event) => { setName(event.target.value); setError(''); setMessage('') }} /></label>
+      <button className="button button-primary" type="submit" disabled={busy || name.trim() === savedName}>{busy ? 'Saving…' : savedName ? 'Update name' : 'Save name'}</button>
+    </form>
+    {error && <p className="auth-error" role="alert">{error}</p>}
+    {message && <p className="auth-success" role="status">{message}</p>}
+  </section>
+}
+
+export function AuthPage({ mode, preferences, session, authReady, callbackStatus, onVerifyLink, pendingEmail, onPendingEmail, onNavigate, onGuest, onUserUpdated, canImport = false, onImport, syncStatus, client = supabase }: Props) {
   const [email, setEmail] = useState(pendingEmail)
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
@@ -112,6 +145,7 @@ export function AuthPage({ mode, preferences, session, authReady, callbackStatus
         {(mode === 'confirmed' || mode === 'reset') && callbackStatus === 'ready' && <button type="button" className="button button-primary" onClick={onVerifyLink} disabled={!authReady}>{mode === 'confirmed' ? 'Confirm email' : 'Verify reset link'}</button>}
         {mode === 'confirmed' && (callbackComplete || callbackStatus === 'already-authenticated') && <button type="button" className="button button-primary" onClick={onGuest}>Continue learning</button>}
         {mode === 'account' && <><p>{session ? `Signed in as ${session.user.email ?? 'your MOSAIC account'}.` : 'You are learning as a guest.'}</p><p>{session ? `Cloud progress: ${syncStatus === 'saved' ? 'Saved' : syncStatus === 'saving' ? 'Saving' : syncStatus === 'failed' ? 'Sync Failed' : syncStatus === 'conflict' ? 'Needs review' : syncStatus === 'ready' ? 'Ready' : 'Checking'}. Guest work stays on this device unless you choose to import it.` : 'Your work is saved on this device. An account is optional.'}</p>{session && canImport && onImport && <button type="button" className="button button-secondary" onClick={onImport}>Import guest progress</button>}</>}
+        {session && client && (mode === 'account' || mode === 'confirmed' && callbackComplete) && <AccountNameForm key={session.user.id} session={session} client={client} onUserUpdated={onUserUpdated} />}
         {!configured && <p role="alert" className="auth-error">Authentication is unavailable in this build. You can still use all lessons without an account.</p>}
         {configured && formMode && <form className="auth-form" onSubmit={(event) => { void submit(event) }}>
           {mode !== 'reset' && emailField}
