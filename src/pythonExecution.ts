@@ -60,7 +60,9 @@ try:
         if isinstance(_node, ast.If):
             _if_lines[_node.lineno] = (_node.body[0].lineno, _node.orelse[0].lineno if _node.orelse else None, _node.end_lineno)
         if isinstance(_node, (ast.For, ast.While)):
-            _loop_lines[_node.lineno] = _node.body[0].lineno
+            _loop_lines[_node.lineno] = (_node.body[0].lineno,
+                _node.iter.id if isinstance(_node, ast.For) and isinstance(_node.iter, ast.Name) else None,
+                _node.target.id if isinstance(_node, ast.For) and isinstance(_node.target, ast.Name) else None)
 except SyntaxError:
     pass
 def _trace_value(value, depth=0):
@@ -114,10 +116,11 @@ def _mosaic_trace(frame, event, arg):
             entry['decision'] = {'line': _prior_line, 'branch': 'if'}
         elif frame.f_lineno == _else_body or (_else_body is None and frame.f_lineno > _if_end):
             entry['decision'] = {'line': _prior_line, 'branch': 'else'}
-    if _prior_line in _loop_lines and event == 'line' and frame.f_lineno == _loop_lines[_prior_line]:
+    if _prior_line in _loop_lines and event == 'line' and frame.f_lineno == _loop_lines[_prior_line][0]:
         _loop_key = (_frame_id, _prior_line)
         _loop_counts[_loop_key] = _loop_counts.get(_loop_key, 0) + 1
-        entry['loopIteration'] = {'line': _prior_line, 'count': _loop_counts[_loop_key]}
+        entry['loopIteration'] = {'line': _prior_line, 'count': _loop_counts[_loop_key],
+                                  'source': _loop_lines[_prior_line][1], 'item': _loop_lines[_prior_line][2]}
     if event == 'return' and frame.f_code.co_name != '<module>':
         entry['returnValue'] = _trace_value(arg)
     if event == 'exception':

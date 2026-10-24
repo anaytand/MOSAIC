@@ -15,6 +15,7 @@
 .kb-hero-copy > p:not(.kb-hero-subtitle) { max-width: 69ch; line-height: 1.7; }
 .kb-hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 20px; margin-top: 26px; }
 .kb-hero-actions > span, .kb-concept-note { font-size: .88rem; color: var(--text-muted); }
+.kb-hero-actions > span strong { color: var(--text); font-size: 1.25rem; }
 .kb-concept-note { margin: 18px 0 0; }
 .kb-hero-ornament { position: absolute; z-index: -1; right: -34px; bottom: -75px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 12px; font-size: clamp(7rem, 15vw, 13rem); font-weight: 700; line-height: .7; letter-spacing: -.13em; color: #7054a8; opacity: .1; transform: rotate(-13deg); pointer-events: none; }
 html[data-theme='dark'] .kb-product-hero h1 span { color: #e1c7ff; }

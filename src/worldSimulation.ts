@@ -25,6 +25,43 @@ export interface WorldState {
   event: TraceEvent
 }
 
+export interface SimulationFrame {
+  eventIndex: number
+  state: WorldState
+  reading?: unknown
+  readingLabel?: string
+  scoreDelta?: number
+  description: string
+  progress: number
+}
+
+const seriesPresentation: Record<LearningTheme['id'], { reading: string; processed: string }> = {
+  basketball: { reading: 'Game score', processed: 'Games processed' },
+  space: { reading: 'Signal reading', processed: 'Signal readings processed' },
+  ocean: { reading: 'Observation depth (m)', processed: 'Depth observations processed' },
+  trains: { reading: 'Station delay (min)', processed: 'Stations processed' },
+  animals: { reading: 'Daily sightings', processed: 'Days processed' },
+  music: { reading: 'Track length (min)', processed: 'Tracks processed' },
+}
+
+export function simulationValueText(value: unknown): string {
+  if (value === null) return 'None'
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) return value.length <= 4 ? value.map(simulationValueText).join(', ') : `${value.length} items`
+  if (typeof value === 'object') return `${Object.keys(value).length} recorded fields`
+  return 'No value recorded'
+}
+
+/** These visual scales never alter the exact Python value shown in the readout. */
+export function signalMeterPercent(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : null
+}
+
+export function oceanDepthPosition(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? 82 + Math.max(0, Math.min(30, value)) * 1.7 : 105
+}
+
 /** Each lesson reads a named value, named function result, actual output, or observed loop events. */
 export function simulationContract(theme: LearningTheme | null, conceptId: ConceptId): SimulationContract {
   if (!theme) return { source: 'output', label: 'Program output', details: [] }
@@ -58,8 +95,9 @@ export function worldStateAt(trace: ExecutionTrace, step: number, theme: Learnin
   const event = trace.events[index]
   const contract = simulationContract(theme, conceptId)
   const moduleEvent = last(events, (item) => item.scope === '<module>')
-  const recordedIterations = events.filter((item) => item.loopIteration).length
-  const totalRecordedIterations = trace.events.filter((item) => item.loopIteration).length
+  const isSeriesIteration = (item: TraceEvent) => conceptId === 'loops' && theme && item.loopIteration?.source === theme.series.key
+  const recordedIterations = events.filter(isSeriesIteration).length
+  const totalRecordedIterations = trace.events.filter(isSeriesIteration).length
   let value: unknown
   let sourceName = ''
   const details: WorldState['details'] = []
@@ -74,14 +112,60 @@ export function worldStateAt(trace: ExecutionTrace, step: number, theme: Learnin
     for (const item of contract.details) if (Object.hasOwn(variables, item.key)) details.push({ label: item.label, value: variables[item.key] })
     if (value === undefined && conceptId === 'loops' && recordedIterations > 0) {
       value = recordedIterations
-      sourceName = 'observed loop iterations'
+      sourceName = `observed loop iterations over ${theme?.series.key}`
     }
   } else if (contract.source === 'function-return') {
     const returnEvent = last(events, (item) => item.kind === 'return' && item.scope === contract.functionName && Object.hasOwn(item, 'returnValue'))
     if (returnEvent) { value = returnEvent.returnValue; sourceName = `return value from ${contract.functionName}()` }
   }
 
-  return { value, available: value !== undefined && value !== '<value not shown>' && value !== '<collection too large to show>' && value !== '<dictionary too large to show>', label: sourceName === 'observed loop iterations' ? 'Observed loop iterations' : contract.label,
-    source: value === recordedIterations && sourceName === 'observed loop iterations' ? 'loop-iteration' : contract.source,
+  const observedLoop = sourceName.startsWith('observed loop iterations over ')
+  return { value, available: value !== undefined && value !== '<value not shown>' && value !== '<collection too large to show>' && value !== '<dictionary too large to show>', label: observedLoop && theme ? seriesPresentation[theme.id].processed : contract.label,
+    source: observedLoop ? 'loop-iteration' : contract.source,
     sourceName, details, recordedIterations, totalRecordedIterations, event }
+}
+
+function readingAt(event: TraceEvent, theme: LearningTheme | null, conceptId: ConceptId): unknown {
+  // A themed reading is shown only for `for item in theme.series.key`, as recorded by Python's trace hook.
+  // Other loops and arbitrary numeric locals are never treated as project observations.
+  if (conceptId !== 'loops' || !theme || event.loopIteration?.source !== theme.series.key || !event.loopIteration.item) return undefined
+  const value = event.variables[event.loopIteration.item]
+  return value === '<value not shown>' || value === '<collection too large to show>' ? undefined : value
+}
+
+/** Select observed changes, not every Python line. Every frame refers to a real trace event. */
+export function simulationFrames(trace: ExecutionTrace, theme: LearningTheme | null, conceptId: ConceptId): SimulationFrame[] {
+  const candidates: Omit<SimulationFrame, 'progress'>[] = []
+  let previousValue = ''
+  let previousScore: number | undefined
+  let latestReading: unknown
+  let latestReadingLabel: string | undefined
+  for (let index = 0; index < trace.events.length; index++) {
+    const state = worldStateAt(trace, index, theme, conceptId)
+    if (!state) continue
+    const event = trace.events[index]
+    const reading = readingAt(event, theme, conceptId)
+    const score = theme?.id === 'basketball' && state.source === 'module-variable' && typeof state.value === 'number' ? state.value : undefined
+    const scoreDelta = score !== undefined && previousScore !== undefined ? score - previousScore : undefined
+    if (score !== undefined) previousScore = score
+    if (reading !== undefined && theme) { latestReading = reading; latestReadingLabel = seriesPresentation[theme.id].reading }
+    const valueSignature = JSON.stringify([state.available ? state.value : undefined, state.details])
+    const valueChanged = valueSignature !== previousValue
+    previousValue = valueSignature
+    const meaningful = reading !== undefined || Boolean(event.decision || event.error) ||
+      (state.available && valueChanged) || (event.outputChanged && simulationContract(theme, conceptId).source === 'output')
+    if (!meaningful) continue
+    const description = event.error ? `Python stopped: ${event.error}`
+      : reading !== undefined ? `${latestReadingLabel}: ${simulationValueText(reading)}. Your loop processed this recorded value.`
+        : scoreDelta !== undefined && scoreDelta > 0 ? `${state.label} increased by ${scoreDelta} to ${simulationValueText(state.value)}.`
+        : event.decision ? `Your condition followed the ${event.decision.branch === 'if' ? 'if' : 'else'} path.`
+          : state.available ? `${state.label}: ${simulationValueText(state.value)}.`
+            : 'Your program printed a message.'
+    candidates.push({ eventIndex: index, state, reading: latestReading, readingLabel: latestReadingLabel, scoreDelta, description })
+  }
+  if (!candidates.some((frame) => frame.state.available || frame.reading !== undefined)) return []
+  // Long traces stay watchable; selected frames still come only from actual execution.
+  const maxFrames = 28
+  const selected = candidates.length <= maxFrames ? candidates : Array.from({ length: maxFrames }, (_, index) => candidates[Math.round(index * (candidates.length - 1) / (maxFrames - 1))])
+  return selected.map((frame, index) => ({ ...frame, progress: (index + 1) / selected.length }))
 }

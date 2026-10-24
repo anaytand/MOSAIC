@@ -20,12 +20,12 @@ export async function submitKeyboardInterest(client: SupabaseClient | null, user
       full_name: input.fullName.trim(),
       email: input.email.trim(),
       quantity: input.quantity,
-      preferred_color: input.preferredColor,
+      preferred_theme: input.preferredTheme,
       comments: input.comments.trim(),
       interest_acknowledged: true,
     }).select('id,user_id').single()
     if (error?.code === '23505') throw new KeyboardInterestError('This account already sent a request. No second request was saved.')
-    if (error?.code === '42P01' || error?.code === '42501' || error?.code === 'PGRST205') throw new KeyboardInterestError('Keyboard requests are not available yet. The database setup may still be pending. No information was saved.')
+    if (error?.code === '42P01' || error?.code === '42501' || error?.code === '42703' || error?.code === 'PGRST204' || error?.code === 'PGRST205') throw new KeyboardInterestError('Keyboard requests are not available yet. The database setup may still be pending. No information was saved.')
     if (error || typeof data?.id !== 'string' || data.user_id !== userId) throw new KeyboardInterestError('The request could not be confirmed as saved. Please try again later.')
   } catch (error) {
     if (error instanceof KeyboardInterestError) throw error

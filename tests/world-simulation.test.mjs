@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { executePythonCases } from './python-harness.mjs'
 import { conceptOrder } from '../src/adaptive.ts'
 import { themeCatalog } from '../src/themes/catalog.ts'
-import { simulationContract, worldStateAt } from '../src/worldSimulation.ts'
+import { oceanDepthPosition, signalMeterPercent, simulationContract, simulationFrames, worldStateAt } from '../src/worldSimulation.ts'
 
 const themeIds = ['basketball', 'space', 'ocean', 'trains', 'animals', 'music']
 const checkSource = 'def check(ns, output):\n    return False, "Simulation does not award lesson completion."'
@@ -106,15 +106,99 @@ test('oversized collections are labeled as unavailable instead of reporting a fa
   assert.equal(state.value, '<collection too large to show>')
 })
 
-test('all six themed scenes render from one accessible playback component', () => {
+test('all six themed scenes render one Play button without debugger controls', () => {
   const [result] = executePythonCases([{ lesson: { checkSource }, code: 'total = 7\nprint(total)' }])
   for (const themeId of themeIds) {
     const html = renderToStaticMarkup(createElement(WorldSimulation, { trace: result.trace, conceptId: 'loops', theme: themeCatalog[themeId], preferences: { ...defaultPreferences, interest: themeId }, onHighlightLine: () => {} }))
     assert.match(html, new RegExp(`world-art--${themeId}`))
     assert.match(html, /See Your Code Come to Life/)
-    assert.match(html, /Previous Step/)
-    assert.match(html, /Next Step/)
-    assert.match(html, /Execution step/)
-    assert.match(html, /It does not determine whether the lesson is complete/)
+    assert.match(html, /▶ Play Simulation/)
+    assert.doesNotMatch(html, /Previous Step|Next Step|Restart|Execution step|Variables at this step|Step \d+ of|Line \d+/)
+    assert.equal((html.match(/<button/g) ?? []).length, 1)
+    assert.match(html, /Press Play to watch this run from the beginning/)
   }
+})
+
+test('guided Space loops turn actual signal readings into playback frames', () => {
+  const theme = themeCatalog.space
+  const readings = [72, 66, 60]
+  const code = `signal_readings = ${JSON.stringify(readings)}\nfor signal in signal_readings:\n    print(signal)`
+  const [result] = executePythonCases([{ lesson: { checkSource }, code }])
+  const iterations = result.trace.events.filter((event) => event.loopIteration)
+  assert.deepEqual(iterations.map((event) => [event.loopIteration.source, event.loopIteration.item, event.variables.signal]), [['signal_readings', 'signal', 72], ['signal_readings', 'signal', 66], ['signal_readings', 'signal', 60]])
+  const frames = simulationFrames(result.trace, theme, 'loops')
+  assert.deepEqual(frames.filter((frame) => frame.state.event.loopIteration).map((frame) => frame.reading), readings)
+  assert.equal(frames.at(-1).state.value, 3)
+  assert.equal(frames.at(-1).state.label, 'Signal readings processed')
+  assert.equal(frames.at(-1).progress, 1)
+})
+
+test('all six guided worlds use their own recorded loop values', () => {
+  const cases = themeIds.map((themeId) => {
+    const theme = themeCatalog[themeId]
+    const code = `${theme.series.key} = [3, 5, 8]\nfor observation in ${theme.series.key}:\n    print(observation)`
+    return { themeId, lesson: { checkSource }, code }
+  })
+  const results = executePythonCases(cases)
+  cases.forEach(({ themeId }, index) => {
+    const frames = simulationFrames(results[index].trace, themeCatalog[themeId], 'loops')
+    assert.deepEqual(frames.filter((frame) => frame.state.event.loopIteration).map((frame) => frame.reading), [3, 5, 8], themeId)
+    assert.equal(frames.at(-1).state.recordedIterations, 3)
+  })
+})
+
+test('changed code changes playback readings and final result without invented data', () => {
+  const theme = themeCatalog.basketball
+  const codes = [[2, 3, 2], [3, 3, 3]].map((scores) => `game_scores = ${JSON.stringify(scores)}\nseason_points = 0\nfor score in game_scores:\n    season_points += score\nprint(season_points)`)
+  const results = executePythonCases(codes.map((code) => ({ lesson: { checkSource }, code })))
+  const frames = results.map((result) => simulationFrames(result.trace, theme, 'loops'))
+  assert.deepEqual(frames[0].filter((frame) => frame.state.event.loopIteration).map((frame) => frame.reading), [2, 3, 2])
+  assert.deepEqual(frames[1].filter((frame) => frame.state.event.loopIteration).map((frame) => frame.reading), [3, 3, 3])
+  assert.deepEqual(frames.map((sequence) => sequence.at(-1).state.value), [7, 9])
+  assert.deepEqual(frames[0].filter((frame) => (frame.scoreDelta ?? 0) > 0).map((frame) => frame.scoreDelta), [2, 3, 2])
+  assert.deepEqual(frames[1].filter((frame) => (frame.scoreDelta ?? 0) > 0).map((frame) => frame.scoreDelta), [3, 3, 3])
+  assert.ok(frames.every((sequence) => sequence.every((frame) => results.some((result) => result.trace.events[frame.eventIndex] === frame.state.event))))
+})
+
+test('unsupported code has no simulated result', () => {
+  const [result] = executePythonCases([{ lesson: { checkSource }, code: 'print("Hello")' }])
+  assert.deepEqual(simulationFrames(result.trace, themeCatalog.space, 'loops'), [])
+  const html = renderToStaticMarkup(createElement(WorldSimulation, { trace: result.trace, conceptId: 'loops', theme: themeCatalog.space, preferences: defaultPreferences, onHighlightLine: () => {} }))
+  assert.match(html, /This run did not record/)
+  assert.match(html, /disabled=""/)
+  assert.doesNotMatch(html, /Waiting for a recorded value/)
+})
+
+test('a Python error after recorded data ends playback with the real error event', () => {
+  const code = 'signal_readings = [72]\nfor signal in signal_readings:\n    print(signal)\n1 / 0'
+  const [result] = executePythonCases([{ lesson: { checkSource }, code }])
+  const frames = simulationFrames(result.trace, themeCatalog.space, 'loops')
+  assert.match(result.error, /ZeroDivisionError/)
+  assert.match(frames.at(-1).state.event.error, /ZeroDivisionError/)
+})
+
+test('long real loops are sampled to a bounded playback and retain the final result', () => {
+  const code = 'game_scores = list(range(60))\nseason_points = 0\nfor score in game_scores:\n    season_points += score\nprint(season_points)'
+  const [result] = executePythonCases([{ lesson: { checkSource }, code }])
+  const frames = simulationFrames(result.trace, themeCatalog.basketball, 'loops')
+  assert.ok(frames.length > 1 && frames.length <= 28)
+  assert.equal(frames.at(-1).state.value, 1770)
+  assert.equal(frames.at(-1).progress, 1)
+})
+
+test('reduced motion keeps the scene and text while disabling visual transitions', () => {
+  const [result] = executePythonCases([{ lesson: { checkSource }, code: 'signal_readings = [72]\nfor signal in signal_readings:\n    print(signal)' }])
+  const html = renderToStaticMarkup(createElement(WorldSimulation, { trace: result.trace, conceptId: 'loops', theme: themeCatalog.space, preferences: { ...defaultPreferences, reducedMotion: true, motionIntensity: 0 }, onHighlightLine: () => {} }))
+  assert.match(html, /world-art--space/)
+  assert.match(html, /data-animate="false"/)
+  assert.match(html, /▶ Play Simulation/)
+})
+
+test('signal and depth visuals change with actual readings while keeping bounded display scales', () => {
+  assert.equal(signalMeterPercent(72), 72)
+  assert.equal(signalMeterPercent(9), 9)
+  assert.equal(signalMeterPercent(130), 100)
+  assert.equal(signalMeterPercent('not a signal'), null)
+  assert.ok(oceanDepthPosition(24) > oceanDepthPosition(12))
+  assert.equal(oceanDepthPosition(100), oceanDepthPosition(30))
 })

@@ -11,7 +11,7 @@ export interface TraceEvent {
   outputPreviewTruncated?: boolean
   error?: string
   decision?: { line: number; branch: 'if' | 'else' }
-  loopIteration?: { line: number; count: number }
+  loopIteration?: { line: number; count: number; source?: string | null; item?: string | null }
   returnValue?: unknown
 }
 

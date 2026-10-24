@@ -1,4 +1,8 @@
+import { keyboardThemeOrder } from './keyboardThemes.ts'
+import type { KeyboardThemeId } from './keyboardThemes.ts'
+
 export type KeyboardColor = 'mint' | 'lavender' | 'sky' | 'peach'
+export const keyboardPrice = '$114.99'
 export type MacroKey = 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'M6' | 'F1' | 'F2' | 'F3' | 'F4'
 
 export interface MacroDefinition {
@@ -36,7 +40,7 @@ export interface KeyboardInterestInput {
   fullName: string
   email: string
   quantity: number
-  preferredColor: KeyboardColor
+  preferredTheme: KeyboardThemeId
   comments: string
   acknowledged: boolean
 }
@@ -45,7 +49,7 @@ export function validateKeyboardInterest(input: KeyboardInterestInput): string |
   if (input.fullName.trim().length < 2 || input.fullName.trim().length > 100) return 'Enter your full name (2–100 characters).'
   if (input.email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim())) return 'Enter a valid email address.'
   if (!Number.isInteger(input.quantity) || input.quantity < 1 || input.quantity > 10) return 'Choose a quantity from 1 to 10.'
-  if (!keyboardColors.some((color) => color.id === input.preferredColor)) return 'Choose one of the available color previews.'
+  if (!keyboardThemeOrder.includes(input.preferredTheme)) return 'Choose one of the available keyboard themes.'
   if (input.comments.length > 1000) return 'Keep comments under 1,000 characters.'
   if (!input.acknowledged) return 'Please confirm that this is an interest request, not a purchase.'
   return null

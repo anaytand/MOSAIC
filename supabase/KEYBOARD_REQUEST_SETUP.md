@@ -1,12 +1,14 @@
 # Adaptive Keyboard request setup
 
-The keyboard is a product concept. The purchase-interest form does not accept payment, reserve a unit, promise a price, or guarantee availability. No request can be submitted until the migration is applied to the same Supabase project configured in MOSAIC's Vite environment.
+The keyboard is a product concept with a listed price of $114.99 per keyboard. The purchase-interest form does not accept payment, reserve a unit, or guarantee availability. No request can be submitted until both migrations are applied to the same Supabase project configured in MOSAIC's Vite environment.
 
 ## Apply the migration manually
 
-Review and paste the full contents of [`migrations/20261023000000_keyboard_interest_requests.sql`](migrations/20261023000000_keyboard_interest_requests.sql) into the Supabase SQL Editor, then run it once. The migration creates only `public.keyboard_interest_requests`; it does not modify existing learning, profile, or code-save tables. It intentionally fails if a table with that name already exists, so inspect an existing table before reconciling it. Do not put a service-role key in the frontend.
+If the keyboard request table does not exist yet, review and run [`migrations/20261023000000_keyboard_interest_requests.sql`](migrations/20261023000000_keyboard_interest_requests.sql) in the Supabase SQL Editor first. Then run [`migrations/20261023010000_keyboard_interest_theme.sql`](migrations/20261023010000_keyboard_interest_theme.sql). If the first migration was already applied, run only the second. Do not put a service-role key in the frontend.
 
-The table stores one request per signed-in account. Client-side validation and database constraints limit names, emails, quantity, colors, and comment length. The required acknowledgment records that the user understood this is interest only. `anon` and `public` have no table grants. Signed-in users have SELECT and INSERT grants, with Row Level Security policies limiting both to their own `user_id`. No UPDATE or DELETE grant is exposed through the browser. Supabase project administrators can manage requests through approved administrative tools.
+The second migration adds `preferred_theme` and makes the earlier `preferred_color` field optional. It keeps existing color-only requests intact. A `NOT VALID` constraint requires new requests to name one of the seven supported themes without rejecting earlier rows that have no theme. No learning, profile, or code-save table is changed.
+
+The table stores one request per signed-in account. Client-side validation and database constraints limit names, emails, quantity, themes, and comment length. The required acknowledgment records that the user understood this is interest only. `anon` and `public` have no table grants. Signed-in users have SELECT and INSERT grants, with Row Level Security policies limiting both to their own `user_id`. No UPDATE or DELETE grant is exposed through the browser. Supabase project administrators can manage requests through approved administrative tools.
 
 ## Verify access with two accounts
 

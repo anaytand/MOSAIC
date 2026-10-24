@@ -10,7 +10,7 @@ const { KeyboardPreview, VolumeKnob } = await import('../src/components/Keyboard
 const { KeyboardProductPage } = await import('../src/components/KeyboardProductPage.tsx')
 const { keyboardThemes, keyboardThemeOrder } = await import('../src/keyboardThemes.ts')
 
-const valid = { fullName: 'Alex Learner', email: 'alex@example.test', quantity: 1, preferredColor: 'mint', comments: '', acknowledged: true }
+const valid = { fullName: 'Alex Learner', email: 'alex@example.test', quantity: 1, preferredTheme: 'basketball', comments: '', acknowledged: true }
 const noop = () => {}
 
 test('product preview exposes every proposed key and explicitly labels simulation', () => {
@@ -81,6 +81,7 @@ test('purchase-interest validation requires meaningful fields and acknowledgment
   assert.match(validateKeyboardInterest({ ...valid, fullName: 'A' }), /full name/)
   assert.match(validateKeyboardInterest({ ...valid, email: 'bad' }), /valid email/)
   assert.match(validateKeyboardInterest({ ...valid, quantity: 11 }), /quantity/)
+  assert.match(validateKeyboardInterest({ ...valid, preferredTheme: 'unknown' }), /keyboard themes/)
   assert.match(validateKeyboardInterest({ ...valid, comments: 'x'.repeat(1001) }), /1,000/)
   assert.match(validateKeyboardInterest({ ...valid, acknowledged: false }), /not a purchase/)
 })
@@ -92,7 +93,7 @@ test('a request is considered saved only after Supabase returns its owner-scoped
     return { insert: (row) => { inserted = row; return { select: (columns) => { assert.equal(columns, 'id,user_id'); return { single: async () => ({ data: { id: 'saved-id', user_id: 'account-a' }, error: null }) } } } } }
   } }
   await submitKeyboardInterest(client, 'account-a', valid)
-  assert.deepEqual(inserted, { user_id: 'account-a', full_name: 'Alex Learner', email: 'alex@example.test', quantity: 1, preferred_color: 'mint', comments: '', interest_acknowledged: true })
+  assert.deepEqual(inserted, { user_id: 'account-a', full_name: 'Alex Learner', email: 'alex@example.test', quantity: 1, preferred_theme: 'basketball', comments: '', interest_acknowledged: true })
 })
 
 test('missing migration, failed insert, guest access, and account changes never report success', async () => {
@@ -100,6 +101,7 @@ test('missing migration, failed insert, guest access, and account changes never 
   const makeClient = (id, result) => ({ auth: { getUser: async () => ({ data: { user: { id } }, error: null }) }, from: () => ({ insert: () => ({ select: () => ({ single: async () => result }) }) }) })
   await assert.rejects(submitKeyboardInterest(makeClient('account-b', null), 'account-a', valid), /session changed/)
   await assert.rejects(submitKeyboardInterest(makeClient('account-a', { data: null, error: { code: '42P01' } }), 'account-a', valid), /database setup may still be pending/)
+  await assert.rejects(submitKeyboardInterest(makeClient('account-a', { data: null, error: { code: '42703' } }), 'account-a', valid), /database setup may still be pending/)
   await assert.rejects(submitKeyboardInterest(makeClient('account-a', { data: null, error: { code: '23505' } }), 'account-a', valid), /already sent/)
   await assert.rejects(submitKeyboardInterest(makeClient('account-a', { data: null, error: null }), 'account-a', valid), /could not be confirmed as saved/)
 })
@@ -113,6 +115,12 @@ test('SQL denies public reads and writes and limits accounts to their own one ro
   assert.match(sql, /for select to authenticated using \(\(select auth\.uid\(\)\) = user_id\)/)
   assert.match(sql, /for insert to authenticated with check \(\(select auth\.uid\(\)\) = user_id\)/)
   assert.doesNotMatch(sql, /grant .* to anon|for select to anon/)
+  const themeSql = readFileSync(new URL('../supabase/migrations/20261023010000_keyboard_interest_theme.sql', import.meta.url), 'utf8')
+  assert.match(themeSql, /add column preferred_theme text/)
+  assert.match(themeSql, /alter column preferred_color drop not null/)
+  assert.match(themeSql, /preferred_theme is not null and preferred_theme in/)
+  assert.match(themeSql, /not valid/)
+  assert.doesNotMatch(themeSql, /drop table|drop column|disable row level security|grant .* to anon/)
 })
 
 test('signed-in product page explains that the form is a request and shows no fake confirmation', () => {
@@ -122,5 +130,9 @@ test('signed-in product page explains that the form is a request and shows no fa
   assert.match(html, /Sound on Your Terms/)
   assert.match(html, /One Slider\. Your Ideal Environment/)
   assert.match(html, /This is a product-interest request, not a purchase/)
+  assert.match(html, /\$114\.99 per keyboard/)
+  const pageSource = readFileSync(new URL('../src/components/KeyboardProductPage.tsx', import.meta.url), 'utf8')
+  assert.match(pageSource, /name="preferredTheme"/)
+  assert.doesNotMatch(pageSource, /name="preferredColor"/)
   assert.doesNotMatch(html, /Your request has been received/)
 })
